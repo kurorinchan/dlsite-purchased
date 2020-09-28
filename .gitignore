@@ -1,0 +1,3 @@
+# Since this tool uses cookies instead of test them, it would make things
+# less error prone to check it in by ignoring.
+cookies.txt
