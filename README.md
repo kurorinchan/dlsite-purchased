@@ -33,10 +33,10 @@ pipenv install
 
 ログイン用URLは[`https://login.dlsite.com/login`](https://login.dlsite.com/login)
 
-1. https://login.dlsite.com/login　にGETリクエストを送る
+1. `https://login.dlsite.com/login` にGETリクエストを送る
 2. クッキーのXSRF-TOKENの値(token)を取得
 3. POSTリクエスト用のpayloadを `_token=$token` `login_id=$username` `password=$password` にする。
-4. GET時に取得したクッキーをそのまま使い、POSTリクエストを上記のpayloadで https://login.dlsite.com/login に送る。
+4. GET時に取得したクッキーをそのまま使い、POSTリクエストを上記のpayloadで `https://login.dlsite.com/login` に送る。
 5. ステータスコードのチェックと共に、レスポンスのクッキーに`PHPSESSID`が入っていればログイン成功。
 
 3の`$token`は2のXSRD-TOKENの値を使う。`$username`はユーザー名`$password`は平文パスワード。
