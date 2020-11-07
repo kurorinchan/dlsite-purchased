@@ -22,3 +22,63 @@ Use pipenv.
 ```
 pipenv install
 ```
+
+# 解説
+
+## クッキー取得
+
+プログラマティカルにクッキーを取得する方法
+
+### ログイン
+
+ログイン用URLは[`https://login.dlsite.com/login`](https://login.dlsite.com/login)
+
+1. https://login.dlsite.com/login　にGETリクエストを送る
+2. クッキーのXSRF-TOKENの値(token)を取得
+3. POSTリクエスト用のpayloadを `_token=$token` `login_id=$username` `password=$password` にする。
+4. GET時に取得したクッキーをそのまま使い、POSTリクエストを上記のpayloadで https://login.dlsite.com/login に送る。
+5. ステータスコードのチェックと共に、レスポンスのクッキーに`PHPSESSID`が入っていればログイン成功。
+
+3の`$token`は2のXSRD-TOKENの値を使う。`$username`はユーザー名`$password`は平文パスワード。
+
+Pythonの`requests`を利用していれば4のクッキー使いまわしは`session`を使い回せば、気にする必要はない。
+
+### APIを利用するために必要なクッキーを取得する
+
+上記の1-5のあと
+
+6. 今まで取得したクッキーを維持したまま、`https://ssl.dlsite.com/home/mypage` にGETリクエストを送る。
+7. 今まで取得したクッキーを維持したまま、`https://play.dlsite.com/#/library` にGETリクエストを送る。
+
+これらを行うことにより必要なクッキーがそろう。
+
+## 購入リストの取得
+
+上で取得したクッキーを利用して`https://play.dlsite.com/api/purchases?page=###`にGETリクエストをする。
+上記URLの`###`は数字で置き換える。
+
+pageは必ず`1`から始まるので、最初のリクエストは`https://play.dlsite.com/api/purchases?page=1`になる。
+帰ってくるJSONは
+
+```JSON
+{
+  "last": "1970-01-01T00:00:00.000000Z",
+  "limit": 100,
+  "offset": 0,
+  "total": 2,
+  "works": [
+    ...
+  ]
+}
+```
+
+のようなものになっている。
+
+`last`と`limit`は固定の模様。`limit`は恐らくこのJSONに含まれる`works`の最大数だが、`works`
+の要素数を数えればいいので特に気にする必要はない。
+
+`offset`は`page=1`ページを含まない、残りページ数。この値も`works`の数を数えればいいので
+とくに必要はない。
+
+`total`は購入したアイテムの数。`page`の値が大きすぎると`HTTP STATUS 404`などが帰ってくる
+可能性があるのでここは注意したい。
