@@ -52,6 +52,11 @@ Pythonの`requests`を利用していれば4のクッキー使いまわしは`se
 
 これらを行うことにより必要なクッキーがそろう。
 
+1-5により`login.dlsite.com`のクッキーを
+6により`.dlsite.com`のクッキーを
+7により`play.dlsite.com`のクッキーを
+取得するので、これらすべてにアクセスする必要がある。
+
 ## 購入リストの取得
 
 上で取得したクッキーを利用して`https://play.dlsite.com/api/purchases?page=###`にGETリクエストをする。
