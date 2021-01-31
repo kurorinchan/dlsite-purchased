@@ -1,11 +1,9 @@
-import argparse
 import requests
-import http.cookiejar
-import json
 import logging
 
 LOGIN_URL = 'https://login.dlsite.com/login'
 MYPAGE_URL = 'https://ssl.dlsite.com/home/mypage'
+
 
 def Login(username, password):
     """Logs into DLsite using the username and password.
@@ -27,7 +25,8 @@ def Login(username, password):
     login_response = session.post(LOGIN_URL, data=payload)
 
     if login_response.status_code != requests.codes.ok:
-        logging.error(f'Got status code {login_response.status_code} trying to login.')
+        logging.error(
+            f'Got status code {login_response.status_code} trying to login.')
         return None
 
     # Requires cookies from mypage.
@@ -47,8 +46,8 @@ def Login(username, password):
     # accesses https://play.dlsite.com/login. This gets redirected and seems to
     # get a bunch more cookie entries.
     # This may be useful when they start to require them.
-    
+
     # Also https://play.dlsite.com/api/authorize is accessed but does not seem
     # to add any cookie entries.
-    
+
     return session

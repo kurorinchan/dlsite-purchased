@@ -4,7 +4,6 @@ import http.cookiejar
 import json
 import logging
 import login
-import sys
 
 __URL_TEMPLATE = 'https://play.dlsite.com/api/purchases?page={}'
 
@@ -20,7 +19,7 @@ def GetAllPurchasesFromCookie(cookie):
     return GetAllPurchases(session)
 
 
-def GetAllPurchases(session : requests.Session):
+def GetAllPurchases(session: requests.Session):
     current_page_num = 1
     all_works = []
 

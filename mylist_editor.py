@@ -104,8 +104,6 @@
 
 import requests
 import logging
-import argparse
-import login
 
 # Not the best name, but this URL is for editing the actual list object.
 # For example creating a list, renaming a list, and deleting a list.
