@@ -200,21 +200,17 @@ class MyListEditor:
         if len(list[MYLIST_WORK_ID]) != len(new_order):
             logging.error(
                 f'New order length {len(new_order)} is different from the '
-                f'current list legnth {len(list[MYLIST_WORK_ID])}.'
-            )
+                f'current list legnth {len(list[MYLIST_WORK_ID])}.')
             return False
 
         if list[MYLIST_WORK_ID] == new_order:
-            logging.warning(
-                f'The current list and new order are the same.'
-            )
+            logging.warning(f'The current list and new order are the same.')
             return True
 
         if set(list[MYLIST_WORK_ID]) != set(new_order):
             logging.error(
                 f'The new order {new_order} has a different set of items from '
-                f'the current list {list[MYLIST_WORK_ID]}.'
-            )
+                f'the current list {list[MYLIST_WORK_ID]}.')
             return False
 
         original_order = list[MYLIST_WORK_ID]
@@ -236,7 +232,6 @@ class MyListEditor:
             logging.error(f'Failed to reorder items to {new_order_index}.')
             return False
         return response.json()['result'] == True
-
 
     def AddItemToList(self, item_id, list_id):
         data = {
@@ -267,7 +262,8 @@ class MyListEditor:
         # This takes an actual list returned from GetLists().
         list_name = list[_MYLIST_NAME]
         index = _ListItemIndex(list, item_id)
-        logging.info(f'Attempting to delete {item_id}:{index} from {list_name}.')
+        logging.info(
+            f'Attempting to delete {item_id}:{index} from {list_name}.')
         return self.DeleteItemFromListWithIds(index, list['id'])
 
     def DeleteItemFromListId(self, item_id, list_id):
@@ -297,26 +293,3 @@ class MyListEditor:
             logging.error(f'Failed to delete list {list_id}.')
             return False
         return response.json()['result'] == True
-
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--username', help='Login username.')
-    parser.add_argument('--password', help='Login password.')
-
-    parser.add_argument(
-        '-d',
-        '--debug',
-        help="Print lots of debugging statements",
-        action="store_const",
-        dest="loglevel",
-        const=logging.DEBUG,
-        default=logging.WARNING,
-    )
-    args = parser.parse_args()
-    logging.basicConfig(level=args.loglevel)
-
-    editor = MyListEditor(login.Login(args.username, args.password))
-
-    print(editor.GetLists())
-    print(editor.AddItemToList('RJ285384', '1891416'))
