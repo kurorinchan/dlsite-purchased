@@ -10,15 +10,17 @@ import pathlib
 import requests
 import sys
 
+
 def _RequireLoginCredentialsExit():
     logging.error('Username and password required to login.')
     sys.exit(1)
+
 
 def _CreateLoggedInSession(args):
     if args.save_session:
         if not args.save_session_to:
             args.save_session_to = 'session.bin'
-    
+
     if args.save_session_to:
         args.save_session = True
 
@@ -26,7 +28,7 @@ def _CreateLoggedInSession(args):
     if not use_session_file:
         if not args.username or not args.password:
             _RequireLoginCredentialsExit()
-            
+
         return login.Login(args.username, args.password)
 
     session_file = pathlib.Path(args.save_session_to)
@@ -39,6 +41,7 @@ def _CreateLoggedInSession(args):
     if not args.username or not args.password:
         _RequireLoginCredentialsExit()
     return login.Login(args.username, args.password)
+
 
 def _SaveSession(args):
     save_session_file = args.save_session or args.save_session_to
@@ -105,5 +108,5 @@ if __name__ == '__main__':
     if args.show_mylists:
         editor = mylist_editor.MyListEditor(session)
         print(editor.GetLists())
-        
+
     _SaveSession(args)
