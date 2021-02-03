@@ -119,15 +119,24 @@ MYLISTS = 'mylists'
 MYLIST_WORKS = 'mylist_works'
 _MYLIST_NAME = 'mylist_name'
 _ID = 'id'
+_INSERT_DATE = 'insert_date'
 
 
 # Converts item ID to index in the list.
 def _ListItemIndex(mylist, item_id):
-    mylist_item_ids = mylist[MYLIST_WORK_ID]
+    mylist_item_ids = mylist.item_ids
     for i in range(len(mylist_item_ids)):
         if mylist_item_ids[i] == item_id:
             return i
     return len(mylist_item_ids)
+
+
+class MyList:
+    def __init__(self, id, name, creation_date, item_ids) -> None:
+        self.id = str(id)
+        self.name = name
+        self.creation_date = creation_date
+        self.item_ids = item_ids
 
 
 class MyListEditor:
@@ -137,13 +146,13 @@ class MyListEditor:
     def GetListFromListId(self, list_id):
         lists = self.GetLists()
         for list in lists:
-            if str(list[_ID]) == list_id:
+            if list.id == list_id:
                 return list
-        return []
+        return None
 
     def GetListsFromListName(self, list_name):
         lists = self.GetLists()
-        return [list for list in lists if list[_MYLIST_NAME] == list_name]
+        return [list for list in lists if list.name == list_name]
 
     def GetLists(self):
         response = self.session.get(_MYLIST_GET_URL)
@@ -153,18 +162,24 @@ class MyListEditor:
 
         json_response = response.json()
 
+        mylists = []
+
         # For each list, change mylist_work_id to actually point ot the work
         # ID.
         ids = json_response[MYLIST_WORKS]
-        for mylist in json_response[MYLISTS]:
+        for mylist_json in json_response[MYLISTS]:
+
             list_as_item_ids = []
-            for work_id in mylist[MYLIST_WORK_ID]:
+            for work_id in mylist_json[MYLIST_WORK_ID]:
                 # The json contains the indicies as strings.
                 work_id = int(work_id)
                 list_as_item_ids.append(ids[work_id])
-            mylist[MYLIST_WORK_ID] = list_as_item_ids
 
-        return json_response[MYLISTS]
+            mylist = MyList(str(mylist_json[_ID]), mylist_json[_MYLIST_NAME],
+                            mylist_json[_INSERT_DATE], list_as_item_ids)
+            mylists.append(mylist)
+
+        return mylists
 
     def CreateNewList(self, name):
         data = {
@@ -198,7 +213,7 @@ class MyListEditor:
         if len(list[MYLIST_WORK_ID]) != len(new_order):
             logging.error(
                 f'New order length {len(new_order)} is different from the '
-                f'current list legnth {len(list[MYLIST_WORK_ID])}.')
+                f'current list length {len(list[MYLIST_WORK_ID])}.')
             return False
 
         if list[MYLIST_WORK_ID] == new_order:
@@ -243,39 +258,39 @@ class MyListEditor:
             return False
         return response.json()['result'] == True
 
-    def DeleteItemFromListWithIds(self, mylist_work_id, list_id):
+    def _DeleteItemFromListWithIndex(self, index, list_id):
         # This is relatively difficult ot use. DeleteItemFromList is easier.
         data = {
             'type': 'delete',
             'mylist_id': list_id,
-            'mylist_work_id': mylist_work_id,
+            'mylist_work_id': str(index),
         }
         response = self.session.post(_LIST_UPDATE_URL, data=data)
         if response.status_code != requests.codes.ok:
-            logging.error(f'Failed to add item {mylist_work_id} to {list_id}.')
+            logging.error(f'Failed to delete item {index} from {list_id}.')
             return False
         return response.json()['result'] == True
 
-    def _DeleteItemFromList(self, item_id, list):
+    def DeleteItemFromList(self, item_id, list):
         # This takes an actual list returned from GetLists().
-        list_name = list[_MYLIST_NAME]
+        list_name = list.name
         index = _ListItemIndex(list, item_id)
         logging.info(
             f'Attempting to delete {item_id}:{index} from {list_name}.')
-        return self.DeleteItemFromListWithIds(index, list['id'])
+        return self._DeleteItemFromListWithIndex(index, list.id)
 
     def DeleteItemFromListId(self, item_id, list_id):
         list = self.GetListFromListId(list_id)
         if not list:
             logging.error(f'Failed to find list with ID {list_id}')
             return False
-        return self._DeleteItemFromList(item_id, list)
+        return self.DeleteItemFromList(item_id, list)
 
     def DeleteItemFromListName(self, item_id, list_name):
         lists = self.GetListsFromListName(list_name)
         all_succeeded = True
         for list in lists:
-            if not self._DeleteItemFromList(item_id, list):
+            if not self.DeleteItemFromList(item_id, list):
                 logging.error(
                     f'Failed to delete {item_id} from {list[_MYLIST_NAME]}')
                 all_succeeded = False
