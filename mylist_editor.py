@@ -155,10 +155,12 @@ class MyListEditor:
         return [list for list in lists if list.name == list_name]
 
     def GetLists(self):
+        """Returns a list of MyList objects.
+        """
         response = self.session.get(_MYLIST_GET_URL)
         if response.status_code != requests.codes.ok:
             logging.error(f'Failed to get mylists.')
-            return {}
+            return []
 
         json_response = response.json()
 

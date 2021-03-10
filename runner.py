@@ -9,6 +9,7 @@ import pickle
 import pathlib
 import requests
 import sys
+import downloader
 
 
 def _RequireLoginCredentialsExit():
@@ -66,6 +67,15 @@ if __name__ == '__main__':
               'This flag implies --save-session.'))
 
     parser.add_argument(
+        '--download', help='Comma separated Item IDs (Work IDs) to download.')
+    parser.add_argument(
+        '--download-dir',
+        default='.',
+        help=(
+            'If --download is specified, this flag may be used to specify the '
+            'output directory.'))
+
+    parser.add_argument(
         '-d',
         '--debug',
         help="Print debugging logs.",
@@ -107,6 +117,13 @@ if __name__ == '__main__':
 
     if args.show_mylists:
         editor = mylist_editor.MyListEditor(session)
-        print(editor.GetLists())
+        mylists = editor.GetLists()
+        for list in mylists:
+            print(list.name)
+
+    if args.download:
+        dl = downloader.Downloader(session)
+        for item_id in args.download.split(','):
+            dl.DownloadTo(item_id, args.download_dir)
 
     _SaveSession(args)
