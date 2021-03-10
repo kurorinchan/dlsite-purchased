@@ -97,7 +97,7 @@ class Downloader:
                              f'Naming it {file_name}')
 
             print(f'Downloading {file_name}: '
-                  f'{response.headers["content-length"]:,} bytes.')
+                  f'{int(response.headers["content-length"]):,} bytes.')
 
             with open(dir_path / file_name, 'wb') as f:
                 for chunk in response.iter_content(
