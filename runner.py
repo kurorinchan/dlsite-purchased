@@ -4,51 +4,9 @@ import argparse
 import logging
 
 import mylist_editor
-import login
-import pickle
-import pathlib
-import requests
-import sys
 import downloader
 
-
-def _RequireLoginCredentialsExit():
-    logging.error('Username and password required to login.')
-    sys.exit(1)
-
-
-def _CreateLoggedInSession(args):
-    if args.save_session:
-        if not args.save_session_to:
-            args.save_session_to = 'session.bin'
-
-    if args.save_session_to:
-        args.save_session = True
-
-    use_session_file = args.save_session or args.save_session_to
-    if not use_session_file:
-        if not args.username or not args.password:
-            _RequireLoginCredentialsExit()
-
-        return login.Login(args.username, args.password)
-
-    session_file = pathlib.Path(args.save_session_to)
-    if session_file.is_file():
-        with open(session_file, 'rb') as f:
-            session = requests.Session()
-            session.cookies.update(pickle.load(f))
-            return session
-
-    if not args.username or not args.password:
-        _RequireLoginCredentialsExit()
-    return login.Login(args.username, args.password)
-
-
-def _SaveSession(args):
-    save_session_file = args.save_session or args.save_session_to
-    with open(args.save_session_to, 'wb') as f:
-        pickle.dump(session.cookies, f)
-
+import manager
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
@@ -113,7 +71,9 @@ if __name__ == '__main__':
 
     logging.basicConfig(level=args.loglevel)
 
-    session = _CreateLoggedInSession(args)
+    session = manager.CreateLoggedInSession(args.save_session,
+                                            args.save_session_to,
+                                            args.username, args.password)
 
     if args.show_mylists:
         editor = mylist_editor.MyListEditor(session)
@@ -126,4 +86,4 @@ if __name__ == '__main__':
         for item_id in args.download.split(','):
             dl.DownloadTo(item_id, args.download_dir)
 
-    _SaveSession(args)
+    manager.SaveSession(args.save_session, args.save_session_to, session)

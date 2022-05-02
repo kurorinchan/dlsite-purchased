@@ -1,4 +1,6 @@
 import argparse
+import pathlib
+from typing import Dict, Union
 import requests
 import http.cookiejar
 import json
@@ -19,7 +21,15 @@ def GetAllPurchasesFromCookie(cookie):
     return GetAllPurchases(session)
 
 
-def GetAllPurchases(session: requests.Session):
+def GetAllPurchases(session: requests.Session) -> Dict:
+    """Get all purchased info as dictionary.
+
+    The API is used to get all the purchase info as json and converts it to
+    python dictionary.
+
+    Returns:
+        JSON-like dictionary.
+    """
     current_page_num = 1
     all_works = []
 
@@ -29,34 +39,24 @@ def GetAllPurchases(session: requests.Session):
     # 'referer': 'https://play.dlsite.com/'
     # are added.
     # This may be useful when they start to require them.
-    response = session.get(__URL_TEMPLATE.format(current_page_num))
-    current_page_num += 1
-
-    response_json = response.json()
-    total = int(response_json['total'])
-    left = total
-
-    works = response_json['works']
-    left -= len(works)
-    for work in works:
-        all_works.append(work)
-    logging.info('Processed {} out of {}'.format(total - left, total))
-
-    while left > 0:
+    while True:
         response = session.get(__URL_TEMPLATE.format(current_page_num))
         current_page_num += 1
-        response_json = response.json()
-        works = response_json['works']
-        left -= len(works)
-        for work in works:
-            all_works.append(work)
 
-        logging.info('Processed {} out of {}'.format(total - left, total))
+        response_json = response.json()
+
+        # Requesting past all purchased items still works. But the works field
+        # will be an empty array.
+        works = response_json['works']
+        if not works:
+            break
+        all_works += works
 
     return all_works
 
 
-def _WriteAllworksToFile(all_works, output_file):
+def _WriteAllworksToFile(all_works: Dict, output_file: Union[str,
+                                                             pathlib.Path]):
     with open(output_file, 'w') as f:
         json.dump(all_works, f)
 

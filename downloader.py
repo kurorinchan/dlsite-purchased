@@ -1,10 +1,25 @@
 import logging
 import pathlib
+from typing import List, Union
+import urllib.parse
+from tqdm import tqdm
 from sys import path
 from bs4 import BeautifulSoup
+import requests
 
 # Too small chunk size doesn't make much sense. 25 megabytes is set here.
 _DOWNLOAD_CHUNK_SIZE = 25 * 1024 * 1024
+
+
+def FindItemIdFromUrl(item_url):
+    parse_result = urllib.parse.urlparse(item_url)
+    path = parse_result.path
+    html_name = path.split('/')[-1]
+    if not html_name.endswith('.html'):
+        logging.error(f'Failed to find item id from {item_url}')
+        raise Exception(f'Failed to find item id from {item_url}')
+
+    return html_name.split('.')[0]
 
 
 def _GetContentDispositionFilename(content_disposition):
@@ -21,11 +36,42 @@ def _GetContentDispositionFilename(content_disposition):
     return ''
 
 
+def _DownloadWithProgress(response: requests.Response,
+                          download_path: pathlib.Path) -> pathlib.Path:
+    """Downloads a file using streaming response to a path.
+
+    Note that while it is downloading, it will use a temporary name.
+
+    Args:
+        response is the Response object from getting the download object. It
+            is used to get the actual bytes from the a (e.g. GET) request.
+        download_path is where the downloaded file will be placed on success.
+
+    Returns:
+        A Path object the downloaded file.
+    """
+    _TEMP_DOWNLOAD_FILE_SUFFIX = '.downloading'
+    temp_download_path = download_path.with_suffix(_TEMP_DOWNLOAD_FILE_SUFFIX)
+
+    with open(temp_download_path, 'wb') as f:
+        progress = tqdm(unit="B",
+                        total=int(response.headers['Content-Length']),
+                        unit_scale=True)
+        for chunk in response.iter_content(chunk_size=_DOWNLOAD_CHUNK_SIZE):
+            if not chunk:
+                continue
+            progress.update(len(chunk))
+            f.write(chunk)
+
+    return temp_download_path.rename(download_path)
+
+
 class Downloader:
-    def __init__(self, session) -> None:
+
+    def __init__(self, session: requests.Session) -> None:
         self.__session = session
 
-    def _Get(self, url):
+    def _Get(self, url: str) -> requests.Response:
         """Helper function for GETting a URL for downloading.
 
         This redirects and uses streaming.
@@ -33,9 +79,16 @@ class Downloader:
         Returns:
             response object.
         """
-        return self.__session.get(url, allow_redirects=True, stream=True)
+        return self.__session.get(
+            url,
+            allow_redirects=True,
+            stream=True,
+            headers={
+                'User-Agent':
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36'
+            })
 
-    def GetDownloadUrls(self, item_id):
+    def GetDownloadUrls(self, item_id: str):
         """Returns a list of URLs to download the item.
 
         When the item download is split into multiple files, the list would
@@ -60,6 +113,7 @@ class Downloader:
         response = self._Get(url)
         logging.info(f'The downloaded url was {response.url}')
         content_type = response.headers["content-type"]
+        logging.info(f'Response status was: {response.status_code}')
 
         logging.info(f'content type is {content_type}')
         logging.info(f'content length {response.headers["content-length"]}')
@@ -73,7 +127,8 @@ class Downloader:
 
         return [response.url]
 
-    def DownloadTo(self, item_id, dir):
+    def DownloadTo(self, item_id: str,
+                   dir: Union[str, pathlib.Path]) -> List[pathlib.Path]:
         """Downloads item to a directory.
 
         Note that an item might be split into multiple files, i.e. split
@@ -82,9 +137,19 @@ class Downloader:
         by the server.
 
         Args:
-            item_id is the ID of the item. Also called work ID.
+            item_id is the ID of the item. Also called work ID. Or this could
+              the store URL of the item.
             dir is where the downoloaded items will be placed.
+
+        Returns:
+            A list of paths to the downloaded files.
         """
+        if item_id.startswith('http'):
+            item_id = FindItemIdFromUrl(item_id)
+
+        logging.debug(f'Processing item: {item_id}')
+        downloaded_item_paths = []
+
         urls = self.GetDownloadUrls(item_id)
         dir_path = pathlib.Path(dir)
         for index, url in enumerate(urls):
@@ -93,15 +158,14 @@ class Downloader:
             file_name = _GetContentDispositionFilename(disposition)
             if not file_name:
                 file_name = f'{item_id}.part{index + 1}'
-                logging.info(f'Could not find file name from the server. '
-                             f'Naming it {file_name}')
+                logging.debug(f'Could not find file name from the server. '
+                              f'Naming it {file_name}')
 
             print(f'Downloading {file_name}: '
                   f'{int(response.headers["content-length"]):,} bytes.')
 
-            with open(dir_path / file_name, 'wb') as f:
-                for chunk in response.iter_content(
-                        chunk_size=_DOWNLOAD_CHUNK_SIZE):
-                    f.write(chunk)
+            downloaded_item_paths.append(
+                _DownloadWithProgress(response, dir_path / file_name))
 
         print(f'{item_id} download complete.')
+        return downloaded_item_paths

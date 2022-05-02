@@ -1,17 +1,21 @@
 import requests
 import logging
 
+from typing import Optional
+from requests.adapters import HTTPAdapter, Retry
+
 LOGIN_URL = 'https://login.dlsite.com/login'
 MYPAGE_URL = 'https://ssl.dlsite.com/home/mypage'
 
 
-def Login(username, password):
+def Login(username: str, password: str) -> Optional[requests.Session]:
     """Logs into DLsite using the username and password.
 
     Returns:
         requests session. This can be further used as a "logged in" session.
     """
 
+    logging.info('Logging in.')
     session = requests.Session()
     session.get("https://login.dlsite.com/login")
     token = session.cookies.get_dict()['XSRF-TOKEN']
@@ -50,4 +54,11 @@ def Login(username, password):
     # Also https://play.dlsite.com/api/authorize is accessed but does not seem
     # to add any cookie entries.
 
+    # Setup automatic retries for this session. Any http and https requests
+    # using this session will have this retry configured.
+    # It often gets status 500 and fails to get the content length. This should
+    # recover after a few retries.
+    retries = Retry(backoff_factor=0.5, status_forcelist=[500, 502, 503, 504])
+    session.mount('https://', HTTPAdapter(max_retries=retries))
+    session.mount('http://', HTTPAdapter(max_retries=retries))
     return session

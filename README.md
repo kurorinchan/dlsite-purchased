@@ -9,15 +9,24 @@ DLsiteのAPIを利用して購入情報をJSONとして保存するツール。
 ユーザー名とパスワードを指定してスクリプト内でログインして情報を取得する方法。ユーザー名は
 登録したメールアドレスでもログイン用のIDのどちらでも使用可能。
 
-## cookieを利用する方法
 
-cookieを使用するので、dlsiteにログインした状態でのcookieが必要。
+## コマンド
 
-### cookie取得
-1. Dlsiteにログイン
-2. https://play.dlsite.com/ にアクセス
-3. [cookies.txt](https://chrome.google.com/webstore/detail/cookiestxt/njabckikapfpffapmjgojcnbfjonfjfg)
-などの拡張を使い、cookieを`cookies.txt`として保存する。dlsite用のクッキーだけでいい。
+### config
+セットアップ用のコマンド。最初にこれをする必要がある。
+ユーザー名とパスワードでログイン。ダウンロード先フォルダの指定。
+
+### download
+指定されたアイテムをダウンロード。
+
+### clean
+解凍前のファイルなどが残っていた場合削除するなどのクリーンアップ。
+
+### find
+ダウンロード済みのアイテムかどうかをチェックし、あればパスを表示。
+
+### purchased
+購入した作品のリストなどを出すためのコマンド。
 
 ## 使用例
 
