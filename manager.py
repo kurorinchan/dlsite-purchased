@@ -228,12 +228,13 @@ def _CleanSubcommand(args):
 
     if not args.yes:
         yes_no = input(
-            '\n\nContinuing will delete all the files in the dirctory prefixed '
+            '\n\nContinuing will delete all the files in the directory prefixed '
             'with DELETE above. '
             'Continue cleaning? '
             '[Y/n]:')
         if not yes_no in ['yes', 'Y']:
             print('Aborting.')
+            return
 
     for p in paths_to_be_removed:
         _RemoveFilesInDir(p)
