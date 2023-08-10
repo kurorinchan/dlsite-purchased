@@ -194,11 +194,12 @@ def _ConfigSubcommand(args):
 
 
 def _RemoveFilesInDir(directory: pathlib.Path):
-    for f in os.scandir(directory):
-        if f.is_dir():
-            shutil.rmtree(f)
-        else:
-            os.remove(f)
+    with os.scandir(directory) as entries:
+        for entry in entries:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry.path)
+            else:
+                os.remove(entry.path)
 
 
 def _CleanSubcommand(args):
