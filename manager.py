@@ -1,5 +1,4 @@
 import argparse
-from cgitb import handler
 import logging
 
 import os
@@ -31,16 +30,16 @@ _DEFAULT_CONFIG_DIR = Path.home() / _DEFAULT_CONFIG_DIR_FROM_HOME
 _IN_DOWNLOAD_DIR = 'downloading'
 
 
-def _SetManagementDir(config_dir: str, management_dir: str):
-    path = Path(config_dir) / _MANAGEMENT_DIR_CONFIG_FILE
+def _SetManagementDir(config_dir: Path, management_dir: Path):
+    path = config_dir / _MANAGEMENT_DIR_CONFIG_FILE
     with open(path, 'w') as f:
-        f.write(management_dir)
+        f.write(str(management_dir))
 
     print(f'Changed management directory to {management_dir}')
 
 
-def _GetManagementDir(config_dir: str) -> Optional[str]:
-    path = Path(config_dir) / _MANAGEMENT_DIR_CONFIG_FILE
+def _GetManagementDir(config_dir: Path) -> Optional[str]:
+    path = config_dir / _MANAGEMENT_DIR_CONFIG_FILE
     if not path.exists():
         return None
     with open(path, 'r') as f:
@@ -55,11 +54,11 @@ def _RequireLoginCredentialsExit():
 # TODO: Make this smarter and relogin if the saved session is expired.
 # Trying getting the lists and see if it fails, if it does then it probably
 # needs relogin.
-def CreateLoggedInSession(save_session: bool, save_session_to: Optional[str],
+def CreateLoggedInSession(save_session: bool, save_session_to: Optional[Path],
                           username: str, password: str) -> requests.Session:
     if save_session:
         if not save_session_to:
-            save_session_to = 'session.bin'
+            save_session_to = Path('session.bin')
 
     if save_session_to:
         save_session = True
@@ -152,9 +151,11 @@ def MakeItemIdsSet(items_to_download: List[str]) -> Set[str]:
     return item_ids_set
 
 
-def _DownloadSubcommand(items: str, force: bool, extract: bool,
-                        keep_extracted_archive: bool):
-    management_dir = _GetManagementDir(_DEFAULT_CONFIG_DIR)
+def _DownloadSubcommand(
+        config_dir: Path,
+        items: List[str], force: bool, extract: bool,
+        keep_extracted_archive: bool):
+    management_dir = _GetManagementDir(config_dir)
     if not management_dir:
         print('Management dir is not specified. Specify the management dir '
               'with `config` first.')
@@ -167,7 +168,7 @@ def _DownloadSubcommand(items: str, force: bool, extract: bool,
         items_to_download = find_id.CheckAleadyDownloaded(
             item_ids, management_dir)
 
-    session_file = _DEFAULT_CONFIG_DIR / 'main.session'
+    session_file = config_dir / 'main.session'
     session = CreateLoggedInSession(True, session_file, None, None)
 
     SaveSession(True, session_file, session)
@@ -177,16 +178,18 @@ def _DownloadSubcommand(items: str, force: bool, extract: bool,
 
 
 def _DownloadHandler(args):
-    return _DownloadSubcommand(args.items, args.force, args.extract,
-                               args.keep_extracted_archive)
+    return _DownloadSubcommand(
+        args.config_dir,
+        args.items, args.force, args.extract, args.keep_extracted_archive)
 
 
 def _ConfigSubcommand(args):
-    Path(_DEFAULT_CONFIG_DIR).mkdir(parents=True, exist_ok=True)
+    args.config_dir.mkdir(parents=True, exist_ok=True)
     if args.management_dir:
-        _SetManagementDir(_DEFAULT_CONFIG_DIR, args.management_dir)
+        _SetManagementDir(args.config_dir, args.management_dir)
+        return
 
-    session_file = _DEFAULT_CONFIG_DIR / 'main.session'
+    session_file = args.config_dir / 'main.session'
     session = CreateLoggedInSession(True, session_file, args.username,
                                     args.password)
 
@@ -203,7 +206,7 @@ def _RemoveFilesInDir(directory: pathlib.Path):
 
 
 def _CleanSubcommand(args):
-    management_dir = _GetManagementDir(_DEFAULT_CONFIG_DIR)
+    management_dir = _GetManagementDir(args.config_dir)
     if not management_dir:
         print('Management dir is not specified. Specify the management dir '
               'with `config` first.')
@@ -242,13 +245,13 @@ def _CleanSubcommand(args):
 
 
 def _FindSubcommand(args):
-    items = find_id.FindItems(_GetManagementDir(_DEFAULT_CONFIG_DIR), args.ids)
+    items = find_id.FindItems(_GetManagementDir(args.config_dir), args.ids)
     for item in items:
         print(f'{item.item_id}: {item.directory} prefix:{item.prefix}')
 
 
 def _PurchasedHandler(args):
-    session_file = _DEFAULT_CONFIG_DIR / 'main.session'
+    session_file = args.config_dir / 'main.session'
     session = CreateLoggedInSession(True, session_file, None, None)
     purchases = all_purchased.GetAllPurchases(session)
 
@@ -275,7 +278,18 @@ def _PurchasedHandler(args):
 
 # All the flags for this script is not final. It might change to use commands
 # e.g. config, download, etc., instead of specifying with '--' prefixed flags.
-if __name__ == '__main__':
+def _ParseArgs(arg_array):
+    """Parse command line arguments from an array.
+
+    This may be helpful for testing too. The result could be passed to
+    different subcommand handlers.
+
+    Args:
+        arg_array (Array[str]): Command line arguments.
+
+    Returns:
+        argparse.Namespace: Parsed arguments.
+    """
     parser = argparse.ArgumentParser()
 
     subparsers = parser.add_subparsers()
@@ -306,7 +320,7 @@ if __name__ == '__main__':
     parser_config.add_argument(
         '-m',
         '--management-dir',
-        default='',
+        type=Path,
         help=('Place where all the files are downloaded files are managed.'))
     parser_config.add_argument(
         '--no-save-raw-credential',
@@ -370,9 +384,23 @@ if __name__ == '__main__':
         const=logging.INFO,
     )
 
-    args = parser.parse_args()
+    parser.add_argument('--config-dir',
+                        default=_DEFAULT_CONFIG_DIR,
+                        type=Path,
+                        help='Configuration directory. Use this if you want to '
+                        'use a different directory than the default config '
+                        'directory. Useful for testing.')
 
+    return parser.parse_args(arg_array)
+    
+
+def main(arg_array):
+    args = _ParseArgs(arg_array)
     logging.basicConfig(level=args.loglevel)
 
     if hasattr(args, 'handler'):
         args.handler(args)
+
+
+if __name__ == '__main__':
+    main(sys.argv[1:])

@@ -1,14 +1,15 @@
 import requests
 import logging
 
-from typing import Optional
 from requests.adapters import HTTPAdapter, Retry
 
 LOGIN_URL = 'https://login.dlsite.com/login'
 MYPAGE_URL = 'https://ssl.dlsite.com/home/mypage'
 
+class LoginFailureException(Exception):
+    pass
 
-def Login(username: str, password: str) -> Optional[requests.Session]:
+def Login(username: str, password: str) -> requests.Session:
     """Logs into DLsite using the username and password.
 
     Returns:
@@ -31,14 +32,14 @@ def Login(username: str, password: str) -> Optional[requests.Session]:
     if login_response.status_code != requests.codes.ok:
         logging.error(
             f'Got status code {login_response.status_code} trying to login.')
-        return None
+        raise LoginFailureException()
 
     # Requires cookies from mypage.
     mypage_response = session.get(MYPAGE_URL)
 
     if mypage_response.status_code != requests.codes.ok:
         logging.error('Failed to get logged in mypage.')
-        return None
+        raise LoginFailureException()
 
     # Not sure if this is absolutely necessary but does not seem to hurt.
     session.cookies.set('adultchecked', '1', domain='.dlsite.com', path='/')

@@ -1,8 +1,8 @@
 import os
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, NamedTemporaryFile
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 import manager
 
 
@@ -93,3 +93,67 @@ class ManagerTest(unittest.TestCase):
             mock_move.assert_called_once_with(
                 Path(download_dir / "RJ123"), extracted_files_dir
             )
+
+    @patch("login.Login")
+    def testCreateLoggedInSessionWithUsernamePassword(self, mock_login):
+        with TemporaryDirectory() as tmpdir:
+            manager.CreateLoggedInSession(True, Path(tmpdir) / "sessionfile",
+                                          "fakeusername", "fakepass")
+
+        mock_login.assert_called_once_with("fakeusername", "fakepass")
+
+    @patch("pickle.load")
+    @patch("requests.Session")
+    def testCreateLoggedInSessionUseSavedSession(self,
+                                                 mock_session_create, mock_load):
+        mock_session = MagicMock()
+        with NamedTemporaryFile() as f:
+            mock_session_create.return_value = mock_session
+            result = manager.CreateLoggedInSession(True, Path(f.name), "", "")
+            self.assertEquals(result, mock_session)
+
+        mock_session_create.assert_called()
+        mock_session.cookies.update.assert_called()
+
+    @patch("pickle.load")
+    @patch("requests.Session")
+    def testCreateLoggedInSessionUseSavedSessionNoSaveSession(
+            self, mock_session_create, mock_load):
+        """This should behave the same as using a session.
+
+        In other words, if a session file is specified, the save_session
+        argument should be ignored.
+        """
+        mock_session = MagicMock()
+        with NamedTemporaryFile() as f:
+            mock_session_create.return_value = mock_session
+            result = manager.CreateLoggedInSession(False, Path(f.name), "", "")
+            self.assertEquals(result, mock_session)
+
+        mock_session_create.assert_called()
+        mock_session.cookies.update.assert_called()
+
+    def testCreateLoggedInSessionNoSessoin(self):
+        with self.assertRaises(SystemExit):
+            manager.CreateLoggedInSession(False, None, "", "")
+
+    @patch("login.Login")
+    @unittest.skip("Session is not saved if username and pass is used.")
+    def testCreateLoggedInSessionSaveSessionButNoPathSpecified(self, mock_login):
+        with TemporaryDirectory() as tmpdir:
+            # Expect the session to be saved at "tmpdir/session.bin".
+            os.chdir(tmpdir)
+            manager.CreateLoggedInSession(True, None,
+                                          "fakeusername", "fakepass")
+
+        mock_login.assert_called_once_with("fakeusername", "fakepass")
+        self.assertTrue((Path(tmpdir) / "session.bin").exists())
+
+
+    def testCreateLoggedInSessionOnlyUsername(self):
+        with self.assertRaises(SystemExit):
+            manager.CreateLoggedInSession(False, None, "username", "")
+
+    def testCreateLoggedInSessionOnlyPassword(self):
+        with self.assertRaises(SystemExit):
+            manager.CreateLoggedInSession(False, None, "", "something")
