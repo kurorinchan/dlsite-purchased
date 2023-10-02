@@ -1,4 +1,5 @@
 import argparse
+from enum import Enum
 import logging
 
 import os
@@ -173,8 +174,12 @@ def _DownloadSubcommand(
 
     SaveSession(True, session_file, session)
 
-    Download(session, management_dir, items_to_download, extract,
-             keep_extracted_archive)
+    try:
+        Download(session, management_dir, items_to_download, extract,
+                 keep_extracted_archive)
+    except downloader.HttpUnauthorizeException:
+        print("Unauthorized download. Try relogin and see if it gets fixed.")
+        return
 
 
 def _DownloadHandler(args):

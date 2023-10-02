@@ -13,7 +13,9 @@ _DOWNLOAD_CHUNK_SIZE = 25 * 1024 * 1024
 
 # Thrown when the HTTP status is 401.
 class HttpUnauthorizeException(Exception):
-    pass
+    def __init__(self, response: requests.Response) -> None:
+        super().__init__(response)
+        self.response = response
 
 
 def FindItemIdFromUrl(item_url):
@@ -81,10 +83,14 @@ class Downloader:
 
         This redirects and uses streaming.
 
+        Raises:
+            HttpUnauthorizedException is thrown on HTTP unauthorized.
+
         Returns:
             response object.
         """
-        return self.__session.get(
+        logging.info(f"Getting {url}.")
+        response = self.__session.get(
             url,
             allow_redirects=True,
             stream=True,
@@ -92,6 +98,12 @@ class Downloader:
                 'User-Agent':
                 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/90.0.4430.93 Safari/537.36'
             })
+        logging.info(f'The downloaded url (after possible redirect) was {response.url}')
+        logging.info(f'Response status was: {response.status_code}')
+
+        if response.status_code == 401:
+            raise HttpUnauthorizeException(response)
+        return response
 
     def GetDownloadUrls(self, item_id: str):
         """Returns a list of URLs to download the item.
@@ -108,6 +120,9 @@ class Downloader:
         Args:
             item_id is the ID of the item. Also called work ID.
 
+        Raises:
+            HttpUnauthorizedException is thrown on HTTP unauthorized.
+
         Returns:
             A list of URLs. The URLs may require a redirect but the redirected
             URL should be an octet stream.
@@ -116,14 +131,10 @@ class Downloader:
         # It always redirects. stream=True is necessary if it directly goes to
         # download.
         response = self._Get(url)
-        logging.info(f'The downloaded url was {response.url}')
         content_type = response.headers["content-type"]
-        logging.info(f'Response status was: {response.status_code}')
-        if response.status_code == 401:
-            raise HttpUnauthorizeException()
 
-        logging.info(f'content type is {content_type}')
-        logging.info(f'content length {response.headers["content-length"]}')
+        logging.info(f'Response content type is {content_type}')
+        logging.info(f'Response content length {response.headers["content-length"]}')
         if 'text/html' in content_type:
             # This is a webpage that contains the split files.
             split_page = BeautifulSoup(response.text, 'html.parser')
@@ -147,6 +158,9 @@ class Downloader:
             item_id is the ID of the item. Also called work ID. Or this could
               the store URL of the item.
             dir is where the downoloaded items will be placed.
+
+        Raises:
+            HttpUnauthorizedException is thrown on HTTP unauthorized.
 
         Returns:
             A list of paths to the downloaded files.

@@ -3,6 +3,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory, NamedTemporaryFile
 import unittest
 from unittest.mock import MagicMock, patch
+import downloader
 import manager
 
 
@@ -157,3 +158,12 @@ class ManagerTest(unittest.TestCase):
     def testCreateLoggedInSessionOnlyPassword(self):
         with self.assertRaises(SystemExit):
             manager.CreateLoggedInSession(False, None, "", "something")
+
+
+    @patch("downloader.Downloader.DownloadTo")
+    def testDownloadUnauthorized(self, download_to_mock: MagicMock):
+        download_to_mock.side_effect = downloader.HttpUnauthorizeException(MagicMock())
+        with TemporaryDirectory() as tmpdir:
+            mock_session = MagicMock()
+            with self.assertRaises(downloader.HttpUnauthorizeException):
+                manager.Download(mock_session, str(tmpdir), set(["any_item"]), False, False)
