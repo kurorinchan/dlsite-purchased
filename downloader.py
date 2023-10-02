@@ -11,6 +11,11 @@ import requests
 _DOWNLOAD_CHUNK_SIZE = 25 * 1024 * 1024
 
 
+# Thrown when the HTTP status is 401.
+class HttpUnauthorizeException(Exception):
+    pass
+
+
 def FindItemIdFromUrl(item_url):
     parse_result = urllib.parse.urlparse(item_url)
     path = parse_result.path
@@ -114,6 +119,8 @@ class Downloader:
         logging.info(f'The downloaded url was {response.url}')
         content_type = response.headers["content-type"]
         logging.info(f'Response status was: {response.status_code}')
+        if response.status_code == 401:
+            raise HttpUnauthorizeException()
 
         logging.info(f'content type is {content_type}')
         logging.info(f'content length {response.headers["content-length"]}')
