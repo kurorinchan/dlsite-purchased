@@ -76,7 +76,7 @@ def _DownloadWithProgress(response: requests.Response,
 class Downloader:
 
     def __init__(self, session: requests.Session) -> None:
-        self.__session = session
+        self.session = session
 
     def _Get(self, url: str) -> requests.Response:
         """Helper function for GETting a URL for downloading.
@@ -90,7 +90,7 @@ class Downloader:
             response object.
         """
         logging.info(f"Getting {url}.")
-        response = self.__session.get(
+        response = self.session.get(
             url,
             allow_redirects=True,
             stream=True,

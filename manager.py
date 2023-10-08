@@ -1,4 +1,5 @@
 import argparse
+from dataclasses import dataclass
 from enum import Enum
 import logging
 
@@ -30,6 +31,8 @@ _DEFAULT_CONFIG_DIR = Path.home() / _DEFAULT_CONFIG_DIR_FROM_HOME
 
 _IN_DOWNLOAD_DIR = 'downloading'
 
+_RAW_LOGIN_CREDENTAIL_FILE = "login_credential"
+
 
 def _SetManagementDir(config_dir: Path, management_dir: Path):
     path = config_dir / _MANAGEMENT_DIR_CONFIG_FILE
@@ -46,6 +49,21 @@ def _GetManagementDir(config_dir: Path) -> Optional[str]:
     with open(path, 'r') as f:
         return f.read()
 
+@dataclass
+class RawCredential:
+    username: str
+    password: str
+
+def _ReloginWithCredential(config_dir: Path) -> Optional[requests.Session]:
+    cred_file = config_dir / _RAW_LOGIN_CREDENTAIL_FILE
+    if not cred_file.exists():
+        return None
+    
+    with open(cred_file, "rb") as f:
+        credential: RawCredential= pickle.load(f)
+    return login.Login(credential.username, credential.password)
+
+
 # TODO: Add a relogin message in the exception or handle where its called.
 class NoCredentialsException(Exception):
     pass
@@ -58,12 +76,11 @@ def LoadSession(session_file: Path) -> requests.Session:
         session.cookies.update(pickle.load(f))
         return session
 
-def SaveSession(save_session_to: Path,
-                session: requests.Session):
+def SaveSessionToConfigDir(config_dir : Path, session: requests.Session):
+    session_file = config_dir / 'main.session'
     logging.debug('Saving session to file.')
-    with open(save_session_to, 'wb') as f:
+    with open(session_file, 'wb') as f:
         pickle.dump(session.cookies, f)
-
 
 def Extract(in_download_dir: Path, management_dir: Path,
             keep_archive: bool):
@@ -88,14 +105,39 @@ def Extract(in_download_dir: Path, management_dir: Path,
         shutil.move(new_dir, management_dir)
 
 
-def Download(session: requests.Session, management_dir: str,
+def Download(session: requests.Session, config_dir: Path, management_dir: str,
              items_to_download: Set[str], extract: bool, keep_archive: bool):
     dl = downloader.Downloader(session)
     in_download_dir = Path(management_dir) / _IN_DOWNLOAD_DIR
     in_download_dir.mkdir(exist_ok=True)
 
-    for item_id in items_to_download:
-        dl.DownloadTo(item_id, in_download_dir)
+    # Keeping track of relogins. Relogging in too many times is probably not
+    # in a good state, so exit.
+    _RELOGIN_THRESHOLD = 5
+    num_relogin = 0
+    while len(items_to_download) > 0:
+        downloaded_items = set()
+        for item_id in items_to_download:
+            try:
+                dl.DownloadTo(item_id, in_download_dir)
+                downloaded_items.add(item_id)
+            except downloader.HttpUnauthorizeException:
+                if num_relogin > _RELOGIN_THRESHOLD:
+                    print(f"Tried relogin {num_relogin} times but still failing. Terminating.")
+                    raise
+
+                print("Download unauthorized. Trying to relogin.")
+                new_session = _ReloginWithCredential(config_dir)
+                if not new_session:
+                    print("Failed to find credential for login.")
+                    raise
+                print("Retrying.")
+                dl.session = session
+                num_relogin += 1
+        
+        items_to_download -= downloaded_items
+    
+    SaveSessionToConfigDir(config_dir, dl.session)
 
     if extract:
         Extract(in_download_dir, Path(management_dir), keep_archive)
@@ -141,11 +183,10 @@ def _DownloadSubcommand(
 
     session_file = config_dir / 'main.session'
     session = LoadSession(session_file)
-
-    SaveSession(session_file, session)
+    SaveSessionToConfigDir(config_dir, session)
 
     try:
-        Download(session, management_dir, items_to_download, extract,
+        Download(session, config_dir, management_dir, items_to_download, extract,
                  keep_extracted_archive)
     except downloader.HttpUnauthorizeException:
         print("Unauthorized download. Try relogin and see if it gets fixed.")
@@ -170,27 +211,24 @@ def _ConfigSubcommand(config_dir: Path, management_dir: Optional[Path],
         print("Username and password are required for login.")
         return False
 
-    session_file = config_dir / 'main.session'
-    raw_credential_file =  config_dir / "login_credential"
     session = login.Login(username, password)
 
-    SaveSession(session_file, session)
+    SaveSessionToConfigDir(config_dir, session)
 
     if not save_raw_credentials:
         return True
     
+    raw_credential_file =  config_dir / _RAW_LOGIN_CREDENTAIL_FILE
     with open(raw_credential_file, 'wb') as f:
-        creds = {
-            "username": username,
-            "password": password,
-        }
+        creds = RawCredential(username=username, password=password)
         pickle.dump(creds, f)
 
     return True
 
 def _ConfigHandler(args):
     _ConfigSubcommand(args.config_dir, args.management_dir,
-                      args.username, args.password, args.no_save_raw_credential)
+                      args.username, args.password,
+                      not args.no_save_raw_credential)
 
 
 def _RemoveFilesInDir(directory: pathlib.Path):
