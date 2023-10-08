@@ -46,56 +46,26 @@ def _GetManagementDir(config_dir: Path) -> Optional[str]:
     with open(path, 'r') as f:
         return f.read()
 
+# TODO: Add a relogin message in the exception or handle where its called.
+class NoCredentialsException(Exception):
+    pass
 
-def _RequireLoginCredentialsExit():
-    logging.error('Username and password required to login.')
-    sys.exit(1)
+def LoadSession(session_file: Path) -> requests.Session:
+    if not session_file.is_file():
+        raise NoCredentialsException()
+    with open(session_file, 'rb') as f:
+        session = requests.Session()
+        session.cookies.update(pickle.load(f))
+        return session
 
-
-# TODO: Make this smarter and relogin if the saved session is expired.
-# Trying getting the lists and see if it fails, if it does then it probably
-# needs relogin.
-def CreateLoggedInSession(save_session: bool, save_session_to: Optional[Path],
-                          username: str, password: str) -> requests.Session:
-    if save_session:
-        if not save_session_to:
-            save_session_to = Path('session.bin')
-
-    if save_session_to:
-        save_session = True
-
-    if username and password:
-        return login.Login(username, password)
-
-    use_session_file = save_session or save_session_to
-    if not use_session_file:
-        if not username or not password:
-            _RequireLoginCredentialsExit()
-
-        return login.Login(username, password)
-
-    session_file = pathlib.Path(save_session_to)
-    if session_file.is_file():
-        with open(session_file, 'rb') as f:
-            session = requests.Session()
-            session.cookies.update(pickle.load(f))
-            return session
-
-    if not username or not password:
-        _RequireLoginCredentialsExit()
-    return login.Login(username, password)
-
-
-def SaveSession(save_session: bool, save_session_to: Optional[str],
+def SaveSession(save_session_to: Path,
                 session: requests.Session):
-    save_session_file = save_session or save_session_to
-    if save_session_file:
-        logging.debug('Saving session to file.')
-        with open(save_session_to, 'wb') as f:
-            pickle.dump(session.cookies, f)
+    logging.debug('Saving session to file.')
+    with open(save_session_to, 'wb') as f:
+        pickle.dump(session.cookies, f)
 
 
-def Extract(in_download_dir: pathlib.Path, management_dir: pathlib.Path,
+def Extract(in_download_dir: Path, management_dir: Path,
             keep_archive: bool):
     new_directories = dlsite_extract.CreateArchivesDirs(in_download_dir)
     for new_dir in new_directories:
@@ -170,9 +140,9 @@ def _DownloadSubcommand(
             item_ids, management_dir)
 
     session_file = config_dir / 'main.session'
-    session = CreateLoggedInSession(True, session_file, None, None)
+    session = LoadSession(session_file)
 
-    SaveSession(True, session_file, session)
+    SaveSession(session_file, session)
 
     try:
         Download(session, management_dir, items_to_download, extract,
@@ -188,17 +158,39 @@ def _DownloadHandler(args):
         args.items, args.force, args.extract, args.keep_extracted_archive)
 
 
-def _ConfigSubcommand(args):
-    args.config_dir.mkdir(parents=True, exist_ok=True)
-    if args.management_dir:
-        _SetManagementDir(args.config_dir, args.management_dir)
-        return
+def _ConfigSubcommand(config_dir: Path, management_dir: Optional[Path],
+                      username: Optional[str], password: Optional[str],
+                      save_raw_credentials: bool) -> bool:
+    config_dir.mkdir(parents=True, exist_ok=True)
+    if management_dir:
+        _SetManagementDir(config_dir, management_dir)
+        return True
 
-    session_file = args.config_dir / 'main.session'
-    session = CreateLoggedInSession(True, session_file, args.username,
-                                    args.password)
+    if not (username and password):
+        print("Username and password are required for login.")
+        return False
 
-    SaveSession(True, session_file, session)
+    session_file = config_dir / 'main.session'
+    raw_credential_file =  config_dir / "login_credential"
+    session = login.Login(username, password)
+
+    SaveSession(session_file, session)
+
+    if not save_raw_credentials:
+        return True
+    
+    with open(raw_credential_file, 'wb') as f:
+        creds = {
+            "username": username,
+            "password": password,
+        }
+        pickle.dump(creds, f)
+
+    return True
+
+def _ConfigHandler(args):
+    _ConfigSubcommand(args.config_dir, args.management_dir,
+                      args.username, args.password, args.no_save_raw_credential)
 
 
 def _RemoveFilesInDir(directory: pathlib.Path):
@@ -257,7 +249,7 @@ def _FindSubcommand(args):
 
 def _PurchasedHandler(args):
     session_file = args.config_dir / 'main.session'
-    session = CreateLoggedInSession(True, session_file, None, None)
+    session = LoadSession(session_file)
     purchases = all_purchased.GetAllPurchases(session)
 
     if args.list_purchase_within:
@@ -333,7 +325,7 @@ def _ParseArgs(arg_array):
         default=False,
         help=('When passing login credentials (id/password) do not save it to '
               'a file. The session (cookie) would still be saved.'))
-    parser_config.set_defaults(handler=_ConfigSubcommand)
+    parser_config.set_defaults(handler=_ConfigHandler)
 
     parser_clean = subparsers.add_parser('clean')
     parser_clean.add_argument(
