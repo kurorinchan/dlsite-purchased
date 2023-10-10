@@ -7,7 +7,7 @@ import json
 import logging
 import login
 
-__URL_TEMPLATE = 'https://play.dlsite.com/api/purchases?page={}'
+__URL_TEMPLATE = "https://play.dlsite.com/api/purchases?page={}"
 
 
 def GetAllPurchasesFromUsernamePassword(username, password):
@@ -47,7 +47,7 @@ def GetAllPurchases(session: requests.Session) -> Dict:
 
         # Requesting past all purchased items still works. But the works field
         # will be an empty array.
-        works = response_json['works']
+        works = response_json["works"]
         if not works:
             break
         all_works += works
@@ -55,9 +55,8 @@ def GetAllPurchases(session: requests.Session) -> Dict:
     return all_works
 
 
-def _WriteAllworksToFile(all_works: Dict, output_file: Union[str,
-                                                             pathlib.Path]):
-    with open(output_file, 'w') as f:
+def _WriteAllworksToFile(all_works: Dict, output_file: Union[str, pathlib.Path]):
+    with open(output_file, "w") as f:
         json.dump(all_works, f)
 
 
@@ -70,23 +69,26 @@ def WriteAllPurchases(cookie_file, output_file):
 
 def WriteAllPurchasesWithUsernamePassword(username, password, output_file):
     _WriteAllworksToFile(
-        GetAllPurchasesFromUsernamePassword(username, password), output_file)
+        GetAllPurchasesFromUsernamePassword(username, password), output_file
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('-i', '--cookie', help='Cookie file.')
-    parser.add_argument('-o',
-                        '--output',
-                        required=True,
-                        help='Output file containing all purchased items.')
+    parser.add_argument("-i", "--cookie", help="Cookie file.")
+    parser.add_argument(
+        "-o",
+        "--output",
+        required=True,
+        help="Output file containing all purchased items.",
+    )
 
-    parser.add_argument('--username', help='Login username.')
-    parser.add_argument('--password', help='Login password.')
+    parser.add_argument("--username", help="Login username.")
+    parser.add_argument("--password", help="Login password.")
 
     parser.add_argument(
-        '-d',
-        '--debug',
+        "-d",
+        "--debug",
         help="Print lots of debugging statements",
         action="store_const",
         dest="loglevel",
@@ -94,8 +96,8 @@ if __name__ == "__main__":
         default=logging.WARNING,
     )
     parser.add_argument(
-        '-v',
-        '--verbose',
+        "-v",
+        "--verbose",
         help="Be verbose",
         action="store_const",
         dest="loglevel",
@@ -106,13 +108,12 @@ if __name__ == "__main__":
     logging.basicConfig(level=args.loglevel)
 
     if not args.cookie and not args.username:
-        parser.error('Must specify a cookie file or login credential.')
+        parser.error("Must specify a cookie file or login credential.")
 
     if args.username:
         if not args.password:
-            parser.error('Password is required if using username.')
+            parser.error("Password is required if using username.")
 
-        WriteAllPurchasesWithUsernamePassword(args.username, args.password,
-                                              args.output)
+        WriteAllPurchasesWithUsernamePassword(args.username, args.password, args.output)
     else:
         WriteAllPurchases(args.cookie, args.output)

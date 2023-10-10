@@ -97,7 +97,6 @@ class ManagerTest(unittest.TestCase):
                 Path(download_dir / "RJ123"), extracted_files_dir
             )
 
-
     @patch("pickle.load")
     @patch("requests.Session")
     def testLoadSession(self, mock_session_create, mock_load):
@@ -116,7 +115,6 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as config_dir:
             manager.SaveSessionToConfigDir(Path(config_dir), session_mock)
 
-
     @patch("login.Login")
     def testCreateLoginSession(self, mock_login):
         mock_login.return_value = MagicMock()
@@ -124,7 +122,11 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as config_dir:
             os.chdir(config_dir)
             manager._ConfigSubcommand(
-                Path(config_dir), None, "fakeusername", "fakepass", True,
+                Path(config_dir),
+                None,
+                "fakeusername",
+                "fakepass",
+                True,
             )
             self.assertTrue((Path(config_dir) / "main.session").exists())
             cred_file = Path(config_dir) / "login_credential"
@@ -140,15 +142,25 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as tmpdir:
             self.assertFalse(
                 manager._ConfigSubcommand(
-                    Path(tmpdir), None, "fakeusername", "", True,
-                ))
+                    Path(tmpdir),
+                    None,
+                    "fakeusername",
+                    "",
+                    True,
+                )
+            )
 
     def testCreateLoginSessionOnlyPassword(self):
         with TemporaryDirectory() as tmpdir:
             self.assertFalse(
                 manager._ConfigSubcommand(
-                    Path(tmpdir), None, "", "fakepass", True,
-                ))
+                    Path(tmpdir),
+                    None,
+                    "",
+                    "fakepass",
+                    True,
+                )
+            )
 
     @patch("downloader.Downloader.DownloadTo")
     def testDownloadUnauthorized(self, download_to_mock: MagicMock):
@@ -157,12 +169,24 @@ class ManagerTest(unittest.TestCase):
             with TemporaryDirectory() as config_dir:
                 mock_session = MagicMock()
                 with self.assertRaises(downloader.HttpUnauthorizeException):
-                    manager.Download(mock_session, Path(config_dir), str(management_dir), set(["any_item"]), False, False)
-    
+                    manager.Download(
+                        mock_session,
+                        Path(config_dir),
+                        str(management_dir),
+                        set(["any_item"]),
+                        False,
+                        False,
+                    )
+
     @patch("manager.SaveSessionToConfigDir")
     @patch("manager._ReloginWithCredential")
     @patch("downloader.Downloader.DownloadTo")
-    def testDownloadRetryOnRelogin(self, download_to_mock: MagicMock, relogin_mock: MagicMock, save_session_mock: MagicMock):
+    def testDownloadRetryOnRelogin(
+        self,
+        download_to_mock: MagicMock,
+        relogin_mock: MagicMock,
+        save_session_mock: MagicMock,
+    ):
         """Verify that relogin retries the same item.
 
         An exception is raised on the first download, then the mock should
@@ -170,9 +194,9 @@ class ManagerTest(unittest.TestCase):
         Retry should happen with the item that caused an exception.
         """
         num_called = 0
+
         def download_mock_sideeffect(any, arg):
-            """Raise exception on first call then behave normally.
-            """
+            """Raise exception on first call then behave normally."""
             nonlocal num_called
             num_called += 1
             if num_called == 1:
@@ -185,22 +209,33 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as management_dir:
             with TemporaryDirectory() as config_dir:
                 mock_session = MagicMock()
-                manager.Download(mock_session, Path(config_dir), str(management_dir), set(["item1"]), False, False)
-        
+                manager.Download(
+                    mock_session,
+                    Path(config_dir),
+                    str(management_dir),
+                    set(["item1"]),
+                    False,
+                    False,
+                )
+
         self.assertEqual(download_to_mock.call_count, 2)
-        download_to_mock.assert_has_calls([call("item1", mock.ANY), call("item1", mock.ANY)])
+        download_to_mock.assert_has_calls(
+            [call("item1", mock.ANY), call("item1", mock.ANY)]
+        )
 
     @patch("login.Login")
     def testRelogin(self, login_mock: MagicMock):
         with TemporaryDirectory() as config_dir:
-            with open(Path(config_dir) / manager._RAW_LOGIN_CREDENTAIL_FILE, "wb") as test_cred_file:
+            with open(
+                Path(config_dir) / manager._RAW_LOGIN_CREDENTAIL_FILE, "wb"
+            ) as test_cred_file:
                 cred = manager.RawCredential(username="any", password="string")
                 pickle.dump(cred, test_cred_file)
 
             manager._ReloginWithCredential(Path(config_dir))
-        
+
         login_mock.assert_called_once_with("any", "string")
-    
+
     @patch("login.Login")
     def testReloginNoCredFile(self, login_mock: MagicMock):
         with TemporaryDirectory() as config_dir:

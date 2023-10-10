@@ -1,4 +1,3 @@
-
 import logging
 import os
 import shutil
@@ -6,6 +5,7 @@ import unittest
 import tempfile
 import pathlib
 import manager
+
 
 class FunctionalTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -19,9 +19,12 @@ class FunctionalTest(unittest.TestCase):
         shutil.rmtree(self.__tempdir)
 
     def testConfigChangeManagementDir(self):
-        arguments = self.__config_dir_args + ["config", "-m", os.path.join(self.__tempdir, "manage")]
+        arguments = self.__config_dir_args + [
+            "config",
+            "-m",
+            os.path.join(self.__tempdir, "manage"),
+        ]
         manager.main(arguments)
         with open(self.__test_config_dir / "management_dir", "r") as f:
             content = f.read().strip()
             self.assertEquals(os.path.join(self.__tempdir, "manage"), content)
-

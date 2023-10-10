@@ -23,44 +23,46 @@ from typing import List, Optional, Set
 from pathlib import Path
 
 # None of these are final.
-_MANAGEMENT_DIR_CONFIG_FILE = 'management_dir'
+_MANAGEMENT_DIR_CONFIG_FILE = "management_dir"
 
-_DEFAULT_CONFIG_DIR_FROM_HOME = '.dlsite_manager'
+_DEFAULT_CONFIG_DIR_FROM_HOME = ".dlsite_manager"
 
 _DEFAULT_CONFIG_DIR = Path.home() / _DEFAULT_CONFIG_DIR_FROM_HOME
 
-_IN_DOWNLOAD_DIR = 'downloading'
+_IN_DOWNLOAD_DIR = "downloading"
 
 _RAW_LOGIN_CREDENTAIL_FILE = "login_credential"
 
 
 def _SetManagementDir(config_dir: Path, management_dir: Path):
     path = config_dir / _MANAGEMENT_DIR_CONFIG_FILE
-    with open(path, 'w') as f:
+    with open(path, "w") as f:
         f.write(str(management_dir))
 
-    print(f'Changed management directory to {management_dir}')
+    print(f"Changed management directory to {management_dir}")
 
 
 def _GetManagementDir(config_dir: Path) -> Optional[str]:
     path = config_dir / _MANAGEMENT_DIR_CONFIG_FILE
     if not path.exists():
         return None
-    with open(path, 'r') as f:
+    with open(path, "r") as f:
         return f.read()
+
 
 @dataclass
 class RawCredential:
     username: str
     password: str
 
+
 def _ReloginWithCredential(config_dir: Path) -> Optional[requests.Session]:
     cred_file = config_dir / _RAW_LOGIN_CREDENTAIL_FILE
     if not cred_file.exists():
         return None
-    
+
     with open(cred_file, "rb") as f:
-        credential: RawCredential= pickle.load(f)
+        credential: RawCredential = pickle.load(f)
     return login.Login(credential.username, credential.password)
 
 
@@ -68,28 +70,30 @@ def _ReloginWithCredential(config_dir: Path) -> Optional[requests.Session]:
 class NoCredentialsException(Exception):
     pass
 
+
 def LoadSession(session_file: Path) -> requests.Session:
     if not session_file.is_file():
         raise NoCredentialsException()
-    with open(session_file, 'rb') as f:
+    with open(session_file, "rb") as f:
         session = requests.Session()
         session.cookies.update(pickle.load(f))
         return session
 
-def SaveSessionToConfigDir(config_dir : Path, session: requests.Session):
-    session_file = config_dir / 'main.session'
-    logging.debug('Saving session to file.')
-    with open(session_file, 'wb') as f:
+
+def SaveSessionToConfigDir(config_dir: Path, session: requests.Session):
+    session_file = config_dir / "main.session"
+    logging.debug("Saving session to file.")
+    with open(session_file, "wb") as f:
         pickle.dump(session.cookies, f)
 
-def Extract(in_download_dir: Path, management_dir: Path,
-            keep_archive: bool):
+
+def Extract(in_download_dir: Path, management_dir: Path, keep_archive: bool):
     new_directories = dlsite_extract.CreateArchivesDirs(in_download_dir)
     for new_dir in new_directories:
-        print(f'Extracting files in: {new_dir}')
+        print(f"Extracting files in: {new_dir}")
         dlsite_extract.Unarchive(new_dir, keep_archive)
 
-        print(f'Moving {new_dir} to {management_dir}')
+        print(f"Moving {new_dir} to {management_dir}")
 
         # Before moving the directory, check whether the same name directory
         # exists. If so delete it then move. This only really happens when
@@ -97,7 +101,7 @@ def Extract(in_download_dir: Path, management_dir: Path,
         move_destination_dir = management_dir / new_dir.name
 
         if move_destination_dir.exists():
-            print(f'{management_dir} exists. Removing before move.')
+            print(f"{management_dir} exists. Removing before move.")
             shutil.rmtree(move_destination_dir)
 
         # Want to move to management_dir here because new_dir is the directory
@@ -105,8 +109,14 @@ def Extract(in_download_dir: Path, management_dir: Path,
         shutil.move(new_dir, management_dir)
 
 
-def Download(session: requests.Session, config_dir: Path, management_dir: str,
-             items_to_download: Set[str], extract: bool, keep_archive: bool):
+def Download(
+    session: requests.Session,
+    config_dir: Path,
+    management_dir: str,
+    items_to_download: Set[str],
+    extract: bool,
+    keep_archive: bool,
+):
     dl = downloader.Downloader(session)
     in_download_dir = Path(management_dir) / _IN_DOWNLOAD_DIR
     in_download_dir.mkdir(exist_ok=True)
@@ -123,7 +133,9 @@ def Download(session: requests.Session, config_dir: Path, management_dir: str,
                 downloaded_items.add(item_id)
             except downloader.HttpUnauthorizeException:
                 if num_relogin > _RELOGIN_THRESHOLD:
-                    print(f"Tried relogin {num_relogin} times but still failing. Terminating.")
+                    print(
+                        f"Tried relogin {num_relogin} times but still failing. Terminating."
+                    )
                     raise
 
                 print("Download unauthorized. Trying to relogin.")
@@ -134,9 +146,9 @@ def Download(session: requests.Session, config_dir: Path, management_dir: str,
                 print("Retrying.")
                 dl.session = session
                 num_relogin += 1
-        
+
         items_to_download -= downloaded_items
-    
+
     SaveSessionToConfigDir(config_dir, dl.session)
 
     if extract:
@@ -156,7 +168,7 @@ def MakeItemIdsSet(items_to_download: List[str]) -> Set[str]:
     item_ids_list = items_to_download
     item_ids_set = set()
     for item_id in item_ids_list:
-        if item_id.startswith('http'):
+        if item_id.startswith("http"):
             item_ids_set.add(downloader.FindItemIdFromUrl(item_id))
         else:
             item_ids_set.add(item_id)
@@ -165,29 +177,39 @@ def MakeItemIdsSet(items_to_download: List[str]) -> Set[str]:
 
 
 def _DownloadSubcommand(
-        config_dir: Path,
-        items: List[str], force: bool, extract: bool,
-        keep_extracted_archive: bool):
+    config_dir: Path,
+    items: List[str],
+    force: bool,
+    extract: bool,
+    keep_extracted_archive: bool,
+):
     management_dir = _GetManagementDir(config_dir)
     if not management_dir:
-        print('Management dir is not specified. Specify the management dir '
-              'with `config` first.')
+        print(
+            "Management dir is not specified. Specify the management dir "
+            "with `config` first."
+        )
         sys.exit(1)
 
     item_ids = MakeItemIdsSet(items)
     if force:
         items_to_download = set(item_ids)
     else:
-        items_to_download = find_id.CheckAleadyDownloaded(
-            item_ids, management_dir)
+        items_to_download = find_id.CheckAleadyDownloaded(item_ids, management_dir)
 
-    session_file = config_dir / 'main.session'
+    session_file = config_dir / "main.session"
     session = LoadSession(session_file)
     SaveSessionToConfigDir(config_dir, session)
 
     try:
-        Download(session, config_dir, management_dir, items_to_download, extract,
-                 keep_extracted_archive)
+        Download(
+            session,
+            config_dir,
+            management_dir,
+            items_to_download,
+            extract,
+            keep_extracted_archive,
+        )
     except downloader.HttpUnauthorizeException:
         print("Unauthorized download. Try relogin and see if it gets fixed.")
         return
@@ -196,12 +218,20 @@ def _DownloadSubcommand(
 def _DownloadHandler(args):
     return _DownloadSubcommand(
         args.config_dir,
-        args.items, args.force, args.extract, args.keep_extracted_archive)
+        args.items,
+        args.force,
+        args.extract,
+        args.keep_extracted_archive,
+    )
 
 
-def _ConfigSubcommand(config_dir: Path, management_dir: Optional[Path],
-                      username: Optional[str], password: Optional[str],
-                      save_raw_credentials: bool) -> bool:
+def _ConfigSubcommand(
+    config_dir: Path,
+    management_dir: Optional[Path],
+    username: Optional[str],
+    password: Optional[str],
+    save_raw_credentials: bool,
+) -> bool:
     config_dir.mkdir(parents=True, exist_ok=True)
     if management_dir:
         _SetManagementDir(config_dir, management_dir)
@@ -217,18 +247,23 @@ def _ConfigSubcommand(config_dir: Path, management_dir: Optional[Path],
 
     if not save_raw_credentials:
         return True
-    
-    raw_credential_file =  config_dir / _RAW_LOGIN_CREDENTAIL_FILE
-    with open(raw_credential_file, 'wb') as f:
+
+    raw_credential_file = config_dir / _RAW_LOGIN_CREDENTAIL_FILE
+    with open(raw_credential_file, "wb") as f:
         creds = RawCredential(username=username, password=password)
         pickle.dump(creds, f)
 
     return True
 
+
 def _ConfigHandler(args):
-    _ConfigSubcommand(args.config_dir, args.management_dir,
-                      args.username, args.password,
-                      not args.no_save_raw_credential)
+    _ConfigSubcommand(
+        args.config_dir,
+        args.management_dir,
+        args.username,
+        args.password,
+        not args.no_save_raw_credential,
+    )
 
 
 def _RemoveFilesInDir(directory: pathlib.Path):
@@ -243,8 +278,10 @@ def _RemoveFilesInDir(directory: pathlib.Path):
 def _CleanSubcommand(args):
     management_dir = _GetManagementDir(args.config_dir)
     if not management_dir:
-        print('Management dir is not specified. Specify the management dir '
-              'with `config` first.')
+        print(
+            "Management dir is not specified. Specify the management dir "
+            "with `config` first."
+        )
         sys.exit(1)
 
     watched_items = find_id.GetAllWatchedItems(management_dir)
@@ -253,26 +290,25 @@ def _CleanSubcommand(args):
         # TODO: Check whether there are files in the directory. Otherwise
         # the same list of tiles are reprintted every time clean command is run.
         if item.prefix:
-            print(
-                f'SKIP: {item.directory} which is prefixed with {item.prefix}.'
-            )
+            print(f"SKIP: {item.directory} which is prefixed with {item.prefix}.")
             continue
 
-        print(f'DELETE: {item.directory}.')
+        print(f"DELETE: {item.directory}.")
         paths_to_be_removed.append(item.directory)
 
     if args.dryrun:
-        print('Dryrun complete. No files are deleted.')
+        print("Dryrun complete. No files are deleted.")
         return
 
     if not args.yes:
         yes_no = input(
-            '\n\nContinuing will delete all the files in the directory prefixed '
-            'with DELETE above. '
-            'Continue cleaning? '
-            '[Y/n]:')
-        if not yes_no in ['yes', 'Y']:
-            print('Aborting.')
+            "\n\nContinuing will delete all the files in the directory prefixed "
+            "with DELETE above. "
+            "Continue cleaning? "
+            "[Y/n]:"
+        )
+        if not yes_no in ["yes", "Y"]:
+            print("Aborting.")
             return
 
     for p in paths_to_be_removed:
@@ -282,11 +318,11 @@ def _CleanSubcommand(args):
 def _FindSubcommand(args):
     items = find_id.FindItems(_GetManagementDir(args.config_dir), args.ids)
     for item in items:
-        print(f'{item.item_id}: {item.directory} prefix:{item.prefix}')
+        print(f"{item.item_id}: {item.directory} prefix:{item.prefix}")
 
 
 def _PurchasedHandler(args):
-    session_file = args.config_dir / 'main.session'
+    session_file = args.config_dir / "main.session"
     session = LoadSession(session_file)
     purchases = all_purchased.GetAllPurchases(session)
 
@@ -294,20 +330,19 @@ def _PurchasedHandler(args):
         item_ids = []
         # The dates in the purchased info is in Z time (a.k.a. UTC but Z time is
         # treated differently from UTC time).
-        target_date = dateparser.parse(f'{args.list_purchase_within} Z')
-        logging.debug('target date:', target_date)
+        target_date = dateparser.parse(f"{args.list_purchase_within} Z")
+        logging.debug("target date:", target_date)
         for purchase in purchases:
             # The date here is in Z time (JSON)
-            purchase_date = dateparser.parse(purchase['sales_date'])
-            logging.debug('Item date:', purchase_date)
+            purchase_date = dateparser.parse(purchase["sales_date"])
+            logging.debug("Item date:", purchase_date)
             if purchase_date >= target_date:
-                item_ids.append(purchase['workno'])
+                item_ids.append(purchase["workno"])
 
-        print('Pass these to download command:\n\n' + ' '.join(item_ids) +
-              '\n\n')
+        print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
 
     if args.output:
-        with open(args.output, 'w') as f:
+        with open(args.output, "w") as f:
             json.dump(purchases, f)
 
 
@@ -329,81 +364,90 @@ def _ParseArgs(arg_array):
 
     subparsers = parser.add_subparsers()
 
-    parser_dl = subparsers.add_parser('download', help='see `download -h`')
-    parser_dl.add_argument('items', nargs='+')
-    parser_dl.add_argument('-f',
-                           '--force',
-                           action='store_true',
-                           default=False,
-                           help='Force (re)download all items.')
-    parser_dl.add_argument('--extract',
-                           action='store_true',
-                           default=True,
-                           help='Extract downloaded archives.')
+    parser_dl = subparsers.add_parser("download", help="see `download -h`")
+    parser_dl.add_argument("items", nargs="+")
     parser_dl.add_argument(
-        '--keep-extracted-archive',
-        action='store_true',
+        "-f",
+        "--force",
+        action="store_true",
         default=False,
-        help='Keeps the extracted archive file. '
-        'Set to false to keep the archives after extraction. '
-        'This flag is only meaningful with the extract flag.')
+        help="Force (re)download all items.",
+    )
+    parser_dl.add_argument(
+        "--extract",
+        action="store_true",
+        default=True,
+        help="Extract downloaded archives.",
+    )
+    parser_dl.add_argument(
+        "--keep-extracted-archive",
+        action="store_true",
+        default=False,
+        help="Keeps the extracted archive file. "
+        "Set to false to keep the archives after extraction. "
+        "This flag is only meaningful with the extract flag.",
+    )
     parser_dl.set_defaults(handler=_DownloadHandler)
 
-    parser_config = subparsers.add_parser('config', help='see config -h')
-    parser_config.add_argument('-u', '--username', help='Login username.')
-    parser_config.add_argument('-p', '--password', help='Login password.')
+    parser_config = subparsers.add_parser("config", help="see config -h")
+    parser_config.add_argument("-u", "--username", help="Login username.")
+    parser_config.add_argument("-p", "--password", help="Login password.")
     parser_config.add_argument(
-        '-m',
-        '--management-dir',
+        "-m",
+        "--management-dir",
         type=Path,
-        help=('Place where all the files are downloaded files are managed.'))
+        help=("Place where all the files are downloaded files are managed."),
+    )
     parser_config.add_argument(
-        '--no-save-raw-credential',
-        action='store_true',
+        "--no-save-raw-credential",
+        action="store_true",
         default=False,
-        help=('When passing login credentials (id/password) do not save it to '
-              'a file. The session (cookie) would still be saved.'))
+        help=(
+            "When passing login credentials (id/password) do not save it to "
+            "a file. The session (cookie) would still be saved."
+        ),
+    )
     parser_config.set_defaults(handler=_ConfigHandler)
 
-    parser_clean = subparsers.add_parser('clean')
+    parser_clean = subparsers.add_parser("clean")
     parser_clean.add_argument(
-        '-n',
-        '--dryrun',
-        action='store_true',
+        "-n",
+        "--dryrun",
+        action="store_true",
         default=False,
-        help='Dry run. Lists the files that will get cleaned.',
+        help="Dry run. Lists the files that will get cleaned.",
     )
     parser_clean.add_argument(
-        '-y',
-        '--yes',
-        action='store_true',
+        "-y",
+        "--yes",
+        action="store_true",
         default=False,
-        help='Answer yes to all.',
+        help="Answer yes to all.",
     )
     parser_clean.set_defaults(handler=_CleanSubcommand)
 
-    parser_find = subparsers.add_parser('find')
-    parser_find.add_argument('ids', nargs='+')
+    parser_find = subparsers.add_parser("find")
+    parser_find.add_argument("ids", nargs="+")
     parser_find.set_defaults(handler=_FindSubcommand)
 
-    parser_purchased = subparsers.add_parser('purchased')
-    parser_purchased.add_argument('-o',
-                                  '--output',
-                                  help='Output file location.')
-    parser_purchased.add_argument('--list-latest-purchase',
-                                  help='Downloads the latest purchases.')
+    parser_purchased = subparsers.add_parser("purchased")
+    parser_purchased.add_argument("-o", "--output", help="Output file location.")
     parser_purchased.add_argument(
-        '--list-purchase-within',
-        help='Prints the list of items purchased within '
-        'the specified timedelta. '
-        'The output can be pasted to the download command. '
-        'This can handle anything parsable with dateparser library. '
-        'E.g. "2 days", "1 week", "30 min ago"')
+        "--list-latest-purchase", help="Downloads the latest purchases."
+    )
+    parser_purchased.add_argument(
+        "--list-purchase-within",
+        help="Prints the list of items purchased within "
+        "the specified timedelta. "
+        "The output can be pasted to the download command. "
+        "This can handle anything parsable with dateparser library. "
+        'E.g. "2 days", "1 week", "30 min ago"',
+    )
     parser_purchased.set_defaults(handler=_PurchasedHandler)
 
     parser.add_argument(
-        '-d',
-        '--debug',
+        "-d",
+        "--debug",
         help="Print debugging logs.",
         action="store_const",
         dest="loglevel",
@@ -411,31 +455,33 @@ def _ParseArgs(arg_array):
         default=logging.WARNING,
     )
     parser.add_argument(
-        '-v',
-        '--verbose',
+        "-v",
+        "--verbose",
         help="Print verbose logs.",
         action="store_const",
         dest="loglevel",
         const=logging.INFO,
     )
 
-    parser.add_argument('--config-dir',
-                        default=_DEFAULT_CONFIG_DIR,
-                        type=Path,
-                        help='Configuration directory. Use this if you want to '
-                        'use a different directory than the default config '
-                        'directory. Useful for testing.')
+    parser.add_argument(
+        "--config-dir",
+        default=_DEFAULT_CONFIG_DIR,
+        type=Path,
+        help="Configuration directory. Use this if you want to "
+        "use a different directory than the default config "
+        "directory. Useful for testing.",
+    )
 
     return parser.parse_args(arg_array)
-    
+
 
 def main(arg_array):
     args = _ParseArgs(arg_array)
     logging.basicConfig(level=args.loglevel)
 
-    if hasattr(args, 'handler'):
+    if hasattr(args, "handler"):
         args.handler(args)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main(sys.argv[1:])

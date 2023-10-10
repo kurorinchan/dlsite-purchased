@@ -8,34 +8,42 @@ import downloader
 
 import manager
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     # Common flags.
-    parser.add_argument('--username', help='Login username.')
-    parser.add_argument('--password', help='Login password.')
-    parser.add_argument('--save-session',
-                        action='store_true',
-                        default=False,
-                        help='Saves the logged in session to a file.')
+    parser.add_argument("--username", help="Login username.")
+    parser.add_argument("--password", help="Login password.")
     parser.add_argument(
-        '--save-session-to',
-        help=('Specifies where the session file is stored. '
-              'If the file already exists, it tries to load the file before '
-              'trying to login. '
-              'This flag implies --save-session.'))
-
+        "--save-session",
+        action="store_true",
+        default=False,
+        help="Saves the logged in session to a file.",
+    )
     parser.add_argument(
-        '--download', help='Comma separated Item IDs (Work IDs) to download.')
-    parser.add_argument(
-        '--download-dir',
-        default='.',
+        "--save-session-to",
         help=(
-            'If --download is specified, this flag may be used to specify the '
-            'output directory.'))
+            "Specifies where the session file is stored. "
+            "If the file already exists, it tries to load the file before "
+            "trying to login. "
+            "This flag implies --save-session."
+        ),
+    )
 
     parser.add_argument(
-        '-d',
-        '--debug',
+        "--download", help="Comma separated Item IDs (Work IDs) to download."
+    )
+    parser.add_argument(
+        "--download-dir",
+        default=".",
+        help=(
+            "If --download is specified, this flag may be used to specify the "
+            "output directory."
+        ),
+    )
+
+    parser.add_argument(
+        "-d",
+        "--debug",
         help="Print debugging logs.",
         action="store_const",
         dest="loglevel",
@@ -43,8 +51,8 @@ if __name__ == '__main__':
         default=logging.WARNING,
     )
     parser.add_argument(
-        '-v',
-        '--verbose',
+        "-v",
+        "--verbose",
         help="Print verbose logs.",
         action="store_const",
         dest="loglevel",
@@ -53,27 +61,25 @@ if __name__ == '__main__':
 
     # Purchases.
     parser.add_argument(
-        '--output-purchased',
-        help='Outputs the list of purchased item as JSON to the specified file.'
+        "--output-purchased",
+        help="Outputs the list of purchased item as JSON to the specified file.",
     )
 
     # List.
-    parser.add_argument('--show-mylists',
-                        action='store_true',
-                        help='Shows my lists.')
+    parser.add_argument("--show-mylists", action="store_true", help="Shows my lists.")
 
     parser.add_argument(
-        '--add-to-list',
-        help='Add an item to a list. The format is <list name>:<Item ID>',
+        "--add-to-list",
+        help="Add an item to a list. The format is <list name>:<Item ID>",
     )
 
     args = parser.parse_args()
 
     logging.basicConfig(level=args.loglevel)
 
-    session = manager.CreateLoggedInSession(args.save_session,
-                                            args.save_session_to,
-                                            args.username, args.password)
+    session = manager.CreateLoggedInSession(
+        args.save_session, args.save_session_to, args.username, args.password
+    )
 
     if args.show_mylists:
         editor = mylist_editor.MyListEditor(session)
@@ -83,7 +89,7 @@ if __name__ == '__main__':
 
     if args.download:
         dl = downloader.Downloader(session)
-        for item_id in args.download.split(','):
+        for item_id in args.download.split(","):
             dl.DownloadTo(item_id, args.download_dir)
 
     manager.SaveSession(args.save_session, args.save_session_to, session)
