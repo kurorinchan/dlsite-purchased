@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
-from typing import List, Set, Tuple, Union
+import json
+from typing import List, Set, Tuple
 import ntpath
 import os
-from bs4 import BeautifulSoup
 import urllib.request
 import urllib.error
 import subprocess
@@ -42,11 +42,6 @@ def _GetPage(url):
     return request.read().decode()
 
 
-def _GetName(soup):
-    """Get the work name."""
-    return soup.find(id="work_name").contents[-1].strip()
-
-
 def _GetRjCode(file_name) -> str:
     file_name, ext = os.path.splitext(file_name)
     while ext:
@@ -54,14 +49,25 @@ def _GetRjCode(file_name) -> str:
     return file_name
 
 
-def _GetWorkName(page_url) -> str:
+def GetWorkNameFromWorkId(work_id: str) -> str:
+    """Get name from ID.
+
+    This uses the JSON API to get the work info from its ID.
+
+    Args:
+        work_id (str): Target work ID. This function tries to get the info for
+            this ID.
+
+    Returns:
+        str: Name of work. Empty string on error.
+    """
     try:
-        page = _GetPage(page_url)
-    except Exception as e:
-        logging.error(f"Failed to get {page_url} with error {e}")
+        url = f"https://www.dlsite.com/maniax/product/info/ajax?product_id={work_id}"
+        raw_json_response = _GetPage(url)
+        work_info = json.loads(raw_json_response)
+        return work_info[work_id]["work_name"]
+    except:
         return ""
-    soup = BeautifulSoup(page, "html.parser")
-    return _GetName(soup)
 
 
 def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
@@ -80,7 +86,7 @@ def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
             archive_files.append(file)
 
     if len(archive_files) == 0:
-        logging.warning("No files found in ", archive_dir)
+        logging.warning(f"No files found in {archive_dir}")
         return
 
     # If there are multiple files, then only the one that says 'part1' has to
@@ -220,15 +226,12 @@ class Archive:
         self.__work_name = None
         self.__file_name = ntpath.basename(self.__paths[0])
         self.__rj_code = _GetRjCode(self.__file_name)
-        self.__page_url = (
-            f"https://www.dlsite.com/maniax/work/=/product_id/{self.__rj_code}.html"
-        )
 
     # The item page is deleted for items removed from the store. However the
     # Download page might have the name. Change it to get it from there.
     def FetchWorkName(self):
         if not self.__work_name:
-            work_name = _GetWorkName(self.__page_url)
+            work_name = GetWorkNameFromWorkId(self.__rj_code)
             if not work_name:
                 return ""
 
@@ -244,9 +247,6 @@ class Archive:
 
     def Paths(self) -> List[str]:
         return self.__paths
-
-    def PageUrl(self):
-        return self.__page_url
 
     def WorkCode(self):
         return self.__rj_code

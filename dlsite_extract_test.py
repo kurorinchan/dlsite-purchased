@@ -83,7 +83,7 @@ class ExtractTest(unittest.TestCase):
                 ],
             )
 
-    @patch("dlsite_extract._GetWorkName")
+    @patch("dlsite_extract.GetWorkNameFromWorkId")
     def testCreateArchiveDirs(self, get_work_name_mock):
         get_work_name_mock.return_value = ""
         with TemporaryDirectory() as dir_with_archives:
