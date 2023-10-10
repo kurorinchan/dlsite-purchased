@@ -4,3 +4,7 @@ cookies.txt
 
 # Used for saving sessions.
 *.session
+
+# pytest-cov files.
+.coverage
+coverage.xml

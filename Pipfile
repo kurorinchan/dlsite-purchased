@@ -5,6 +5,8 @@ verify_ssl = true
 
 [dev-packages]
 yapf = "*"
+pytest = "*"
+pytest-cov = "*"
 
 [packages]
 requests = "*"
