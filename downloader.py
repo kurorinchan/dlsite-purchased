@@ -29,9 +29,9 @@ def FindItemIdFromUrl(item_url):
     return html_name.split(".")[0]
 
 
-def _GetContentDispositionFilename(content_disposition):
+def _GetContentDispositionFilename(content_disposition_content: str):
     _FILENAME = "filename="
-    split_fields = content_disposition.split(";")
+    split_fields = content_disposition_content.split(";")
     for field in split_fields:
         field = field.strip()
         if not field.startswith(_FILENAME):
@@ -105,7 +105,7 @@ class Downloader:
             raise HttpUnauthorizeException(response)
         return response
 
-    def GetDownloadUrls(self, item_id: str):
+    def GetDownloadUrls(self, item_id: str) -> List[str]:
         """Returns a list of URLs to download the item.
 
         When the item download is split into multiple files, the list would
