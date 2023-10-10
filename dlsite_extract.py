@@ -1,24 +1,18 @@
 #!/usr/bin/env python3
 
-from typing import Set, Union
+from typing import List, Set, Tuple, Union
 import ntpath
 import os
 from bs4 import BeautifulSoup
 import urllib.request
+import urllib.error
 import subprocess
-
-from enum import Enum
 
 import argparse
 import re
 import shutil
 import pathlib
 import logging
-
-
-class ArchiveType(Enum):
-    SPLIT_RAR = 0
-    OTHER = 1
 
 
 # From stackoverflow
@@ -42,7 +36,7 @@ def _GetPage(url):
     try:
         request = urllib.request.urlopen(url)
     except urllib.error.HTTPError as e:
-        if e.code != 404:  # pragma: no cover
+        if e.code != 404:
             raise
         request = urllib.request.urlopen(url)
     return request.read().decode()
@@ -70,7 +64,7 @@ def _GetWorkName(page_url) -> str:
     return _GetName(soup)
 
 
-def Unarchive(archive_dir: Union[str, pathlib.Path], keep_archive: bool):
+def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
     """Extracts the files in the directory.
 
     Unarchives the archives in the specified directory. The output is also
@@ -80,11 +74,10 @@ def Unarchive(archive_dir: Union[str, pathlib.Path], keep_archive: bool):
         archive_dir contains the archives that should be extracted.
         keep_archive specifies whether the archives should be kept after extraction.
     """
-    dir = pathlib.Path(archive_dir)
-    archive_files = []
-    for file in dir.glob("*"):
+    archive_files: List[pathlib.Path] = []
+    for file in archive_dir.glob("*"):
         if file.is_file():
-            archive_files.append(str(file))
+            archive_files.append(file)
 
     if len(archive_files) == 0:
         logging.warning("No files found in ", archive_dir)
@@ -95,10 +88,10 @@ def Unarchive(archive_dir: Union[str, pathlib.Path], keep_archive: bool):
     target_file = archive_files[0]
     if len(archive_files) > 1:
         for file in archive_files:
-            if file.startswith("."):
+            if file.name.startswith("."):
                 continue
 
-            if "part1" in file:
+            if "part1." in file.name:
                 target_file = file
                 break
 
@@ -112,9 +105,7 @@ def Unarchive(archive_dir: Union[str, pathlib.Path], keep_archive: bool):
             os.remove(f)
 
 
-def _ExtractZip(
-    archive_dir: Union[str, pathlib.Path], target_file: Union[str, pathlib.Path]
-) -> bool:
+def _ExtractZip(archive_dir: pathlib.Path, target_file: pathlib.Path) -> bool:
     """Extracts archive.
 
     Extracts target_file in archive_dir. target_file is passed to the
@@ -134,8 +125,8 @@ def _ExtractZip(
             "unar",
             "-f",
             "-o",
-            archive_dir,
-            target_file,
+            str(archive_dir),
+            str(target_file),
         ]
         logging.debug(cmd)
         try:
@@ -148,7 +139,7 @@ def _ExtractZip(
             return True
 
 
-def _PopOneWork(files):
+def _PopOneWork(files: List[str]) -> Tuple[List[str], List[str]]:
     """Get one archive from files list
 
     This will remove at least one file from the files list.
@@ -201,7 +192,7 @@ def _PopOneWork(files):
 
 class Archive:
     @classmethod
-    def Create(cls, dir):
+    def Create(cls, dir: pathlib.Path):
         onlyfiles = [f for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f))]
 
         # Sometimes there are hidden files. Filter them out.
@@ -217,7 +208,7 @@ class Archive:
 
         return archives
 
-    def __init__(self, paths):
+    def __init__(self, paths: List[str]):
         """Creates an archive representation.
 
         Args:
@@ -251,7 +242,7 @@ class Archive:
 
         return self.__work_name
 
-    def Paths(self):
+    def Paths(self) -> List[str]:
         return self.__paths
 
     def PageUrl(self):
@@ -262,6 +253,17 @@ class Archive:
 
 
 def _MoveArchiveToDir(archive: Archive, out_dir_name: str) -> pathlib.Path:
+    """Move all the files in archive to a directory
+
+    Args:
+        archive (Archive):
+            Object describing an archive which could be multiple files.
+        out_dir_name (str):
+            Name of the directory the archive should be moved to.
+
+    Returns:
+        pathlib.Path: Path to the directory that the archive was moved to.
+    """
     file_dir = pathlib.Path(os.path.abspath(archive.Paths()[0])).parent
     out_dir = file_dir / out_dir_name
     out_dir.mkdir(exist_ok=True)
@@ -275,7 +277,7 @@ def _MoveArchiveToDir(archive: Archive, out_dir_name: str) -> pathlib.Path:
     return out_dir
 
 
-def CreateArchivesDirs(dir_with_archives: str) -> Set[pathlib.Path]:
+def CreateArchivesDirs(dir_with_archives: pathlib.Path) -> Set[pathlib.Path]:
     """Creates directories and moves the archives into the directory.
 
     This function takes a directory that contains a bunch of archives.
@@ -292,14 +294,14 @@ def CreateArchivesDirs(dir_with_archives: str) -> Set[pathlib.Path]:
     archives = Archive.Create(dir_with_archives)
 
     new_directories: Set[pathlib.Path] = set()
-    for a in archives:
-        work_name = a.FetchWorkName()
-        print(f"Extracting {a.Paths()} for {work_name}.")
+    for archive in archives:
+        work_name = archive.FetchWorkName()
+        print(f"Extracting {archive.Paths()} for {work_name}.")
         if not work_name:
-            output_dir_name = a.WorkCode()
+            output_dir_name = archive.WorkCode()
         else:
-            output_dir_name = "{} {}".format(a.WorkCode(), a.FetchWorkName())
-        out_dir = _MoveArchiveToDir(a, output_dir_name)
+            output_dir_name = f"{archive.WorkCode()} {archive.FetchWorkName()}"
+        out_dir = _MoveArchiveToDir(archive, output_dir_name)
         new_directories.add(out_dir)
 
     return new_directories
@@ -316,7 +318,7 @@ def main():
     )
 
     args = parser.parse_args()
-    archive_file_path = args.directory
+    archive_file_path = pathlib.Path(args.directory)
 
     new_directories = CreateArchivesDirs(archive_file_path)
 

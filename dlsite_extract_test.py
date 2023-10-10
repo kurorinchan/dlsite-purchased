@@ -4,18 +4,14 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import dlsite_extract
 
 
 class ExtractTest(unittest.TestCase):
-    def setUp(self) -> None:
-        pass
-
     def testPopOneWorkNormal(self):
         with TemporaryDirectory() as dir_with_archives:
-            # Preparation. Create a bunch of files for testing.
             dir_with_archives = Path(dir_with_archives)
             files = [
                 dir_with_archives / "RJ1234.zip",
@@ -23,7 +19,6 @@ class ExtractTest(unittest.TestCase):
                 dir_with_archives / "RJ4321.part2.rar",
             ]
 
-            # The function takes file names only.
             archives, rest = dlsite_extract._PopOneWork(
                 list(map(lambda f: f.name, files))
             )
@@ -46,7 +41,6 @@ class ExtractTest(unittest.TestCase):
                 dir_with_archives / "RJ4321.part2.rar",
             ]
 
-            # The function takes file names only.
             archives, rest = dlsite_extract._PopOneWork(
                 list(map(lambda f: f.name, files))
             )
@@ -66,7 +60,6 @@ class ExtractTest(unittest.TestCase):
 
     def testPopOneWorkNoMatch(self):
         with TemporaryDirectory() as dir_with_archives:
-            # Preparation. Create a bunch of files for testing.
             dir_with_archives = Path(dir_with_archives)
             files = [
                 dir_with_archives / "somename.txt",
@@ -75,7 +68,6 @@ class ExtractTest(unittest.TestCase):
                 dir_with_archives / "RJ1234.part3.rar",
             ]
 
-            # The function takes file names only.
             archives, rest = dlsite_extract._PopOneWork(
                 list(map(lambda f: f.name, files))
             )
@@ -95,7 +87,6 @@ class ExtractTest(unittest.TestCase):
     def testCreateArchiveDirs(self, get_work_name_mock):
         get_work_name_mock.return_value = ""
         with TemporaryDirectory() as dir_with_archives:
-            # Preparation. Create a bunch of files for testing.
             dir_with_archives = Path(dir_with_archives)
             files = [
                 dir_with_archives / "RJ1234.zip",
@@ -105,7 +96,7 @@ class ExtractTest(unittest.TestCase):
             for f in files:
                 f.touch()
 
-            directories = dlsite_extract.CreateArchivesDirs(str(dir_with_archives))
+            directories = dlsite_extract.CreateArchivesDirs(dir_with_archives)
             self.assertEqual(
                 directories,
                 set(
@@ -115,3 +106,82 @@ class ExtractTest(unittest.TestCase):
                     ]
                 ),
             )
+
+    @patch("dlsite_extract._ExtractZip")
+    def testUnarchiveMultiFile(self, extract_mock: MagicMock):
+        extract_mock.return_value = True
+        with TemporaryDirectory() as dir_with_archives:
+            dir_with_archives = Path(dir_with_archives)
+            files = [
+                dir_with_archives / "RJ4321.part1.exe",
+                dir_with_archives / "RJ4321.part2.rar",
+            ]
+            for f in files:
+                f.touch()
+
+            dlsite_extract.Unarchive(dir_with_archives, False)
+
+        extract_mock.assert_called_once_with(
+            dir_with_archives, dir_with_archives / "RJ4321.part1.exe"
+        )
+
+    @patch("dlsite_extract._ExtractZip")
+    def testUnarchiveMultiFileLotsOfParts(self, extract_mock: MagicMock):
+        extract_mock.return_value = True
+        with TemporaryDirectory() as dir_with_archives:
+            dir_with_archives = Path(dir_with_archives)
+            files = [
+                dir_with_archives / "RJ4321.part1.exe",
+                dir_with_archives / "RJ4321.part2.rar",
+                dir_with_archives / "RJ4321.part3.rar",
+                dir_with_archives / "RJ4321.part4.rar",
+                dir_with_archives / "RJ4321.part5.rar",
+                dir_with_archives / "RJ4321.part6.rar",
+                dir_with_archives / "RJ4321.part7.rar",
+                dir_with_archives / "RJ4321.part8.rar",
+                dir_with_archives / "RJ4321.part9.rar",
+                dir_with_archives / "RJ4321.part10.rar",
+                # Make sure part1 is passed to extract_mock, not part11.
+                dir_with_archives / "RJ4321.part11.rar",
+            ]
+            for f in files:
+                f.touch()
+
+            dlsite_extract.Unarchive(dir_with_archives, False)
+
+        extract_mock.assert_called_once_with(
+            dir_with_archives, dir_with_archives / "RJ4321.part1.exe"
+        )
+
+    @patch("dlsite_extract._ExtractZip")
+    def testUnarchiveSkipHiddenFiles(self, extract_mock: MagicMock):
+        """Hidden files should be skipped.
+
+        Even if the hidden file contains part1, it should not be passed to
+        the extract function.
+        """
+        extract_mock.return_value = True
+        with TemporaryDirectory() as dir_with_archives:
+            dir_with_archives = Path(dir_with_archives)
+            files = [
+                dir_with_archives / ".part1.hiddenfile",
+                dir_with_archives / "RJ4321.part1.exe",
+                dir_with_archives / "RJ4321.part2.rar",
+            ]
+            for f in files:
+                f.touch()
+
+            dlsite_extract.Unarchive(dir_with_archives, False)
+
+        extract_mock.assert_called_once_with(
+            dir_with_archives, dir_with_archives / "RJ4321.part1.exe"
+        )
+
+    @patch("dlsite_extract._ExtractZip")
+    def testUnarchiveNoFiles(self, extract_mock: MagicMock):
+        extract_mock.return_value = True
+        with TemporaryDirectory() as dir_with_archives:
+            dir_with_archives = Path(dir_with_archives)
+            dlsite_extract.Unarchive(dir_with_archives, False)
+
+        self.assertEqual(extract_mock.call_count, 0)
