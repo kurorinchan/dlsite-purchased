@@ -200,7 +200,8 @@ def _PopOneWork(files):
 
 
 class Archive:
-    def Create(dir):
+    @classmethod
+    def Create(cls, dir):
         onlyfiles = [f for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f))]
 
         # Sometimes there are hidden files. Filter them out.
