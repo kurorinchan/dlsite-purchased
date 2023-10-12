@@ -82,17 +82,22 @@ class Items:
         return list(self.items.values())
 
 
-def AddItemsInDir(directory: str, items: Items):
-    directory = pathlib.Path(directory)
-    watched = directory / _WATCHED_DIR_NAME
-    if watched.is_dir():
-        AddItemsInDir(watched, items)
+def _AddItemsInDir(directory: pathlib.Path, items: Items):
     subfolders = [d for d in directory.iterdir() if d.is_dir()]
     for subfolder in subfolders:
         items.Add(subfolder)
 
 
-def CheckAleadyDownloaded(items_to_download: Set[str], management_dir: str):
+def GetItemsInDir(directory: str) -> Items:
+    items = Items()
+    watched = pathlib.Path(directory) / _WATCHED_DIR_NAME
+    if watched.is_dir():
+        _AddItemsInDir(watched, items)
+    _AddItemsInDir(pathlib.Path(directory), items)
+    return items
+
+
+def CheckAleadyDownloaded(items_to_download: Set[str], management_dir: str) -> Set[str]:
     """Checks whether the item has been downloaded already.
 
     Args:
@@ -123,8 +128,7 @@ def FindItems(directory: str, ids: Set[str]) -> List[Item]:
         by ids argument. If the item is not found, then it would not be in
         the list.
     """
-    items = Items()
-    AddItemsInDir(directory, items)
+    items = GetItemsInDir(directory)
 
     found_items = []
     for id in ids:
@@ -142,8 +146,7 @@ def GetAllItemPaths(directory: str) -> List[pathlib.Path]:
         A list of paths of items under directory. This contains all watched
         items too.
     """
-    items = Items()
-    AddItemsInDir(directory, items)
+    items = GetItemsInDir(directory)
     return [pathlib.Path(item.directory) for item in items.GetItemsAsList()]
 
 
@@ -161,15 +164,13 @@ def GetAllWatchedItemPaths(directory: str) -> List[pathlib.Path]:
         A list of paths of items under directory. This contains all watched
         items too.
     """
-    items = Items()
-    AddItemsInDir(os.path.join(directory, _WATCHED_DIR_NAME), items)
+    items = GetItemsInDir(os.path.join(directory, _WATCHED_DIR_NAME))
     return [pathlib.Path(item.directory) for item in items.GetItemsAsList()]
 
 
 def GetAllWatchedItems(directory: str) -> List[Item]:
     """Same as GetAllWatchedItemPaths() but returns Item objects."""
-    items = Items()
-    AddItemsInDir(os.path.join(directory, _WATCHED_DIR_NAME), items)
+    items = GetItemsInDir(os.path.join(directory, _WATCHED_DIR_NAME))
     return items.GetItemsAsList()
 
 
