@@ -316,7 +316,12 @@ def _CleanSubcommand(args):
 
 
 def _FindSubcommand(args):
-    items = find_id.FindItems(_GetManagementDir(args.config_dir), args.ids)
+    management_dir = _GetManagementDir(args.config_dir)
+    if not management_dir:
+        print(f"Failed to find management directory. Try configuring first.")
+        return 1
+
+    items = find_id.FindItems(management_dir, args.ids)
     for item in items:
         print(f"{item.item_id}: {item.directory} prefix:{item.prefix}")
 
