@@ -13,6 +13,7 @@ import pathlib
 import requests
 import sys
 import downloader
+import click_point
 import all_purchased
 import json
 import dlsite_extract
@@ -351,6 +352,12 @@ def _PurchasedHandler(args):
             json.dump(purchases, f)
 
 
+def _PointsHandler(args):
+    session_file = args.config_dir / "main.session"
+    session = LoadSession(session_file)
+    click_point.ClickForPoints(session)
+
+
 # All the flags for this script is not final. It might change to use commands
 # e.g. config, download, etc., instead of specifying with '--' prefixed flags.
 def _ParseArgs(arg_array):
@@ -449,6 +456,9 @@ def _ParseArgs(arg_array):
         'E.g. "2 days", "1 week", "30 min ago"',
     )
     parser_purchased.set_defaults(handler=_PurchasedHandler)
+
+    parser_points = subparsers.add_parser("lottery")
+    parser_points.set_defaults(handler=_PointsHandler)
 
     parser.add_argument(
         "-d",
