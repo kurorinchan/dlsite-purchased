@@ -356,6 +356,7 @@ def _PointsHandler(args):
     session_file = args.config_dir / "main.session"
     session = LoadSession(session_file)
     click_point.ClickForPoints(session)
+    SaveSessionToConfigDir(args.config_dir, session)
 
 
 # All the flags for this script is not final. It might change to use commands
