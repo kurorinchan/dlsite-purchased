@@ -4,8 +4,12 @@
 from http import HTTPStatus
 import logging
 from requests import Session
+from datetime import datetime, timezone
+import pytz
+
 
 _DLFARM_CLICK_URL = "https://www.dlsite.com/maniax/event/dlfarm/ajax?act=draw"
+_JST = pytz.timezone("Asia/Tokyo")
 
 
 def ClickForPoints(session: Session) -> bool:
@@ -24,5 +28,6 @@ def ClickForPoints(session: Session) -> bool:
         return False
 
     result_name = response.json()["name"]
-    print(f"Got {result_name}")
+    jst_time = datetime.now(timezone.utc).astimezone(_JST).isoformat()
+    print(f"Japan time: {jst_time}\nGot {result_name}")
     return True
