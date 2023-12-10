@@ -1,6 +1,8 @@
 import argparse
 from dataclasses import dataclass
 from enum import Enum
+import functools
+from http import HTTPStatus
 import logging
 
 import os
@@ -19,9 +21,11 @@ import json
 import dlsite_extract
 import find_id
 
-from typing import List, Optional, Set
+from typing import Callable, List, Optional, Set
 
 from pathlib import Path
+
+from contextlib import contextmanager
 
 # None of these are final.
 _MANAGEMENT_DIR_CONFIG_FILE = "management_dir"
@@ -67,12 +71,31 @@ def _ReloginWithCredential(config_dir: Path) -> Optional[requests.Session]:
     return login.Login(credential.username, credential.password)
 
 
+
 # TODO: Add a relogin message in the exception or handle where its called.
 class NoCredentialsException(Exception):
     pass
 
 
-def LoadSession(session_file: Path) -> requests.Session:
+@contextmanager
+def UsingMainSession(config_dir: Path):
+    """Context manager for loading and saving the used session.
+
+    This loads the main session. After it has been used (goes out of
+    context) the session is saved to the same file.
+
+    Args:
+        config_dir: Configuration directory containing the main session.
+    """
+    session_file = config_dir / "main.session"
+    session = LoadSessionFromFile(session_file)
+    try:
+        yield session
+    finally:
+        SaveMainSessionToConfigDir(config_dir, session)
+
+
+def LoadSessionFromFile(session_file: Path) -> requests.Session:
     if not session_file.is_file():
         raise NoCredentialsException()
     with open(session_file, "rb") as f:
@@ -81,7 +104,7 @@ def LoadSession(session_file: Path) -> requests.Session:
         return session
 
 
-def SaveSessionToConfigDir(config_dir: Path, session: requests.Session):
+def SaveMainSessionToConfigDir(config_dir: Path, session: requests.Session):
     session_file = config_dir / "main.session"
     logging.debug("Saving session to file.")
     with open(session_file, "wb") as f:
@@ -108,6 +131,7 @@ def Extract(in_download_dir: Path, management_dir: Path, keep_archive: bool):
         # Want to move to management_dir here because new_dir is the directory
         # name.
         shutil.move(new_dir, management_dir)
+
 
 
 def Download(
@@ -150,7 +174,7 @@ def Download(
 
         items_to_download -= downloaded_items
 
-    SaveSessionToConfigDir(config_dir, dl.session)
+    SaveMainSessionToConfigDir(config_dir, dl.session)
 
     if extract:
         Extract(in_download_dir, Path(management_dir), keep_archive)
@@ -198,22 +222,19 @@ def _DownloadSubcommand(
     else:
         items_to_download = find_id.CheckAleadyDownloaded(item_ids, management_dir)
 
-    session_file = config_dir / "main.session"
-    session = LoadSession(session_file)
-    SaveSessionToConfigDir(config_dir, session)
-
-    try:
-        Download(
-            session,
-            config_dir,
-            management_dir,
-            items_to_download,
-            extract,
-            keep_extracted_archive,
-        )
-    except downloader.HttpUnauthorizeException:
-        print("Unauthorized download. Try relogin and see if it gets fixed.")
-        return
+    with UsingMainSession(config_dir) as session:
+        try:
+            Download(
+                session,
+                config_dir,
+                management_dir,
+                items_to_download,
+                extract,
+                keep_extracted_archive,
+            )
+        except downloader.HttpUnauthorizeException:
+            print("Unauthorized download. Try relogin and see if it gets fixed.")
+            return
 
 
 def _DownloadHandler(args):
@@ -244,7 +265,7 @@ def _ConfigSubcommand(
 
     session = login.Login(username, password)
 
-    SaveSessionToConfigDir(config_dir, session)
+    SaveMainSessionToConfigDir(config_dir, session)
 
     if not save_raw_credentials:
         return True
@@ -328,35 +349,40 @@ def _FindSubcommand(args):
 
 
 def _PurchasedHandler(args):
-    session_file = args.config_dir / "main.session"
-    session = LoadSession(session_file)
-    purchases = all_purchased.GetAllPurchases(session)
+    with UsingMainSession(args.config_dir) as session:
+        purchases = all_purchased.GetAllPurchases(session)
 
-    if args.list_purchase_within:
-        item_ids = []
-        # The dates in the purchased info is in Z time (a.k.a. UTC but Z time is
-        # treated differently from UTC time).
-        target_date = dateparser.parse(f"{args.list_purchase_within} Z")
-        logging.debug("target date:", target_date)
-        for purchase in purchases:
-            # The date here is in Z time (JSON)
-            purchase_date = dateparser.parse(purchase["sales_date"])
-            logging.debug("Item date:", purchase_date)
-            if purchase_date >= target_date:
-                item_ids.append(purchase["workno"])
+        if args.list_purchase_within:
+            item_ids = []
+            # The dates in the purchased info is in Z time (a.k.a. UTC but Z time is
+            # treated differently from UTC time).
+            target_date = dateparser.parse(f"{args.list_purchase_within} Z")
+            if not target_date:
+                logging.error(f"Failed to understand {args.list_purchase_within}")
+                return
+            logging.debug("target date:", target_date)
+            for purchase in purchases:
+                # The date here is in Z time (JSON)
+                purchase_date = dateparser.parse(purchase["sales_date"])
+                if not purchase_date:
+                    logging.error(
+                        f"Failed to parse date sales_date field in {purchase}"
+                    )
+                    continue
+                logging.debug("Item date:", purchase_date)
+                if purchase_date >= target_date:
+                    item_ids.append(purchase["workno"])
 
-        print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
+            print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
 
-    if args.output:
-        with open(args.output, "w") as f:
-            json.dump(purchases, f)
+        if args.output:
+            with open(args.output, "w") as f:
+                json.dump(purchases, f)
 
 
 def _PointsHandler(args):
-    session_file = args.config_dir / "main.session"
-    session = LoadSession(session_file)
-    click_point.ClickForPoints(session)
-    SaveSessionToConfigDir(args.config_dir, session)
+    with UsingMainSession(args.config_dir) as session:
+        click_point.ClickForPoints(session)
 
 
 # All the flags for this script is not final. It might change to use commands

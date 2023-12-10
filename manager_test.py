@@ -103,7 +103,7 @@ class ManagerTest(unittest.TestCase):
         mock_session = MagicMock()
         with NamedTemporaryFile() as f:
             mock_session_create.return_value = mock_session
-            result = manager.LoadSession(Path(f.name))
+            result = manager.LoadSessionFromFile(Path(f.name))
             self.assertEquals(result, mock_session)
 
         mock_session_create.assert_called()
@@ -113,7 +113,7 @@ class ManagerTest(unittest.TestCase):
         session_mock = MagicMock()
         session_mock.cookies = "any value"
         with TemporaryDirectory() as config_dir:
-            manager.SaveSessionToConfigDir(Path(config_dir), session_mock)
+            manager.SaveMainSessionToConfigDir(Path(config_dir), session_mock)
 
     @patch("login.Login")
     def testCreateLoginSession(self, mock_login):
@@ -178,7 +178,7 @@ class ManagerTest(unittest.TestCase):
                         False,
                     )
 
-    @patch("manager.SaveSessionToConfigDir")
+    @patch("manager.SaveMainSessionToConfigDir")
     @patch("manager._ReloginWithCredential")
     @patch("downloader.Downloader.DownloadTo")
     def testDownloadRetryOnRelogin(
@@ -242,3 +242,14 @@ class ManagerTest(unittest.TestCase):
             self.assertIsNone(manager._ReloginWithCredential(Path(config_dir)))
 
         login_mock.assert_not_called()
+
+    @patch("manager.SaveMainSessionToConfigDir")
+    @patch("manager.LoadSessionFromFile")
+    def testSessionContextManager(
+        self, load_mock: MagicMock, save_session_mock: MagicMock
+    ):
+        with TemporaryDirectory() as config_dir:
+            with manager.UsingMainSession(Path(config_dir)) as s:
+                pass
+        load_mock.assert_called_once()
+        save_session_mock.assert_called_once()
