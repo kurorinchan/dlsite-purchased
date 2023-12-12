@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-from typing import Dict, List, Union
+from typing import Dict, List
 import requests
 import http.cookiejar
 import json
@@ -136,7 +136,7 @@ def GetAllPurchases(session: requests.Session) -> List:
     return all_works
 
 
-def _WriteAllworksToFile(all_works: Dict, output_file: Union[str, pathlib.Path]):
+def _WriteAllworksToFile(all_works: Dict, output_file: str | pathlib.Path):
     with open(output_file, "w") as f:
         json.dump(all_works, f)
 
