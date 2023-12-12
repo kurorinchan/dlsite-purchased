@@ -6,8 +6,12 @@ import http.cookiejar
 import json
 import logging
 import login
+import concurrent.futures
+
+import time
 
 __URL_TEMPLATE = "https://play.dlsite.com/api/purchases?page={}"
+__PURCHASED_COUNT_URL = "https://play.dlsite.com/api/product_count"
 
 
 def GetAllPurchasesFromUsernamePassword(username, password):
@@ -21,6 +25,74 @@ def GetAllPurchasesFromCookie(cookie):
     return GetAllPurchases(session)
 
 
+def GetPurchasedItemsInParallel(
+    num_pages: int, max_parallel_tasks: int, session: requests.Session
+) -> List[Dict]:
+    """Get purchased items in parallel.
+
+    Args:
+        num_pages (int): _description_
+        max_sessions (int): _description_
+        session (requests.Session): _description_
+
+    Returns:
+        List[Dict]: A list of JSON-like dictionaries, from getting all the
+                    items. Combining them should result in a full list of items.
+
+    Raises:
+        HTTPError when there is a problem fetching data.
+    """
+    _FIRST_PAGE_NUM = 1
+    max_page_num = _FIRST_PAGE_NUM + num_pages
+
+    urls = [
+        __URL_TEMPLATE.format(page_num)
+        for page_num in range(_FIRST_PAGE_NUM, max_page_num)
+    ]
+
+    if not urls:
+        return []
+
+    # Note that this could throw an exception when the response status is not OK.
+    def _FetchOne(url):
+        # With the following request, in a browser, HTTP headers:
+        # 'x-xsrf-token': session.cookies.get_dict()['XSRF-TOKEN']
+        # 'referer': 'https://play.dlsite.com/'
+        # are added.
+        start_get = time.perf_counter()
+        response = session.get(url)
+        end_get = time.perf_counter()
+        response.raise_for_status()
+
+        start_json_parse = time.perf_counter()
+        response_json = response.json()
+        end_json_parse = time.perf_counter()
+
+        logging.info(
+            f"{url}: Get took {end_get - start_get}. Parse json took {end_json_parse - start_json_parse}"
+        )
+
+        return response_json
+
+    # Looks like 10 is the reasonable amount of parallelism. Increasing this
+    # could result in an error or no speed-up.
+    _SIMULTANEOUS_CONNETIONS = 10
+    pool_size = min(max_parallel_tasks, _SIMULTANEOUS_CONNETIONS)
+    responses = []
+    with concurrent.futures.ThreadPoolExecutor(pool_size) as executor:
+        future_to_url = {executor.submit(_FetchOne, url): url for url in urls}
+        for future in concurrent.futures.as_completed(future_to_url):
+            url = future_to_url[future]
+            try:
+                data = future.result()
+                logging.info(f"Got response for {url}")
+                responses.append(data)
+            except:
+                logging.info(f"Fetching {url} raised an exception.")
+                raise
+    return responses
+
+
 def GetAllPurchases(session: requests.Session) -> List:
     """Get all purchased info as dictionary.
 
@@ -29,28 +101,36 @@ def GetAllPurchases(session: requests.Session) -> List:
 
     Returns:
         JSON-like dictionary.
+
+    Raises:
+        HTTPError when there is a problem.
     """
-    current_page_num = 1
+
+    response = session.get(__PURCHASED_COUNT_URL)
+    response.raise_for_status()
+    purchased_json = response.json()
+    num_items: int = purchased_json["user"]
+    logging.info(f"Purchase count json is: {purchased_json}")
+    if num_items == 0:
+        logging.info("No items.")
+        return []
+
+    items_per_page: int = purchased_json["page_limit"]
+
+    num_pages = num_items // items_per_page
+    if num_items % items_per_page != 0:
+        num_pages += 1
+
+    results = GetPurchasedItemsInParallel(
+        num_pages, purchased_json["concurrency"], session
+    )
+
     all_works = []
-
-    # response = session.get(__URL_TEMPLATE.format(current_page_num), headers=headers)
-    # With the following request, in a browser, HTTP headers:
-    # 'x-xsrf-token': session.cookies.get_dict()['XSRF-TOKEN']
-    # 'referer': 'https://play.dlsite.com/'
-    # are added.
-    # This may be useful when they start to require them.
-    while True:
-        response = session.get(__URL_TEMPLATE.format(current_page_num))
-        current_page_num += 1
-
-        response.raise_for_status()
-        response_json = response.json()
-
-        # Requesting past all purchased items still works. But the works field
-        # will be an empty array.
-        works = response_json["works"]
+    for json_response in results:
+        works = json_response["works"]
         if not works:
-            break
+            logging.info("No works info. Skipping.")
+            continue
         all_works += works
 
     return all_works

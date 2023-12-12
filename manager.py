@@ -386,6 +386,7 @@ def _PurchasedHandler(args):
     purchases = []
 
     def _GetAll():
+        nonlocal purchases
         purchases = all_purchased.GetAllPurchases(session)
 
     _MAX_RETRIES = 1
