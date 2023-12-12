@@ -124,8 +124,7 @@ def UsingMainSession(config_dir: Path):
     Args:
         config_dir: Configuration directory containing the main session.
     """
-    session_file = config_dir / "main.session"
-    session = LoadSessionFromFile(session_file)
+    session = LoadMainSessionFromConfigDir(config_dir)
     try:
         yield session
     finally:
@@ -139,6 +138,11 @@ def LoadSessionFromFile(session_file: Path) -> requests.Session:
         session = requests.Session()
         session.cookies.update(pickle.load(f))
         return session
+
+
+def LoadMainSessionFromConfigDir(config_dir: Path):
+    session_file = config_dir / "main.session"
+    return LoadSessionFromFile(session_file)
 
 
 def SaveMainSessionToConfigDir(config_dir: Path, session: requests.Session):
@@ -253,8 +257,7 @@ def _DownloadSubcommand(
     else:
         items_to_download = find_id.CheckAleadyDownloaded(item_ids, management_dir)
 
-    session_file = config_dir / "main.session"
-    session = LoadSessionFromFile(session_file)
+    session = LoadMainSessionFromConfigDir(config_dir)
     try:
         Download(
             session,
@@ -381,8 +384,7 @@ def _FindSubcommand(args):
 
 
 def _PurchasedHandler(args):
-    session_file = args.config_dir / "main.session"
-    session = LoadSessionFromFile(session_file)
+    session = LoadMainSessionFromConfigDir(args.config_dir)
     purchases = []
 
     def _GetAll():
