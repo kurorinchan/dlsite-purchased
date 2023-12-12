@@ -1,6 +1,6 @@
 import argparse
 import pathlib
-from typing import Dict, Union
+from typing import Dict, List, Union
 import requests
 import http.cookiejar
 import json
@@ -21,7 +21,7 @@ def GetAllPurchasesFromCookie(cookie):
     return GetAllPurchases(session)
 
 
-def GetAllPurchases(session: requests.Session) -> Dict:
+def GetAllPurchases(session: requests.Session) -> List:
     """Get all purchased info as dictionary.
 
     The API is used to get all the purchase info as json and converts it to
@@ -43,6 +43,7 @@ def GetAllPurchases(session: requests.Session) -> Dict:
         response = session.get(__URL_TEMPLATE.format(current_page_num))
         current_page_num += 1
 
+        response.raise_for_status()
         response_json = response.json()
 
         # Requesting past all purchased items still works. But the works field

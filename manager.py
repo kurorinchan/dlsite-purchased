@@ -71,12 +71,49 @@ def _ReloginWithCredential(config_dir: Path) -> Optional[requests.Session]:
     return login.Login(credential.username, credential.password)
 
 
+def _ReloginOnFailure(config_dir: Path, func: Callable) -> requests.Session | None:
+    """Relogin using raw credentials if there is an authorization failure.
+
+    Attempts a relogin using raw credentials saved under the config dir.
+    The credential will be save to the main session file.
+
+    Args:
+        config_dir (Path): Config dir with raw credentials.
+        func (Callable): Any operation.
+
+    Returns:
+        New session when there was a relogin. None otherwise.
+    """
+
+    def _ReloginAndSaveNewSession(config_dir: Path):
+        logging.error("Unauthorized. Trying to relogin.")
+        new_session = _ReloginWithCredential(config_dir)
+        if not new_session:
+            logging.error("Failed to find credential for login.")
+            raise
+        SaveMainSessionToConfigDir(config_dir, new_session)
+        return new_session
+
+    try:
+        func()
+    except requests.exceptions.HTTPError as e:
+        if e.response.status_code != HTTPStatus.UNAUTHORIZED:
+            logging.error("Something wrong happened in HTTP request.")
+            raise
+        return _ReloginAndSaveNewSession(config_dir)
+    except downloader.HttpUnauthorizeException:
+        return _ReloginAndSaveNewSession(config_dir)
+    else:
+        return None
+
 
 # TODO: Add a relogin message in the exception or handle where its called.
 class NoCredentialsException(Exception):
     pass
 
 
+# TODO: Actually this is not a good idea if relogin logic is implemented because
+# the old session will be saved.
 @contextmanager
 def UsingMainSession(config_dir: Path):
     """Context manager for loading and saving the used session.
@@ -133,7 +170,6 @@ def Extract(in_download_dir: Path, management_dir: Path, keep_archive: bool):
         shutil.move(new_dir, management_dir)
 
 
-
 def Download(
     session: requests.Session,
     config_dir: Path,
@@ -146,31 +182,26 @@ def Download(
     in_download_dir = Path(management_dir) / _IN_DOWNLOAD_DIR
     in_download_dir.mkdir(exist_ok=True)
 
-    # Keeping track of relogins. Relogging in too many times is probably not
-    # in a good state, so exit.
     _RELOGIN_THRESHOLD = 5
-    num_relogin = 0
+    num_relogins = 0
+
     while len(items_to_download) > 0:
         downloaded_items = set()
         for item_id in items_to_download:
-            try:
+
+            def _DownloadAndMark():
                 dl.DownloadTo(item_id, in_download_dir)
                 downloaded_items.add(item_id)
-            except downloader.HttpUnauthorizeException:
-                if num_relogin > _RELOGIN_THRESHOLD:
-                    print(
-                        f"Tried relogin {num_relogin} times but still failing. Terminating."
-                    )
-                    raise
 
-                print("Download unauthorized. Trying to relogin.")
-                new_session = _ReloginWithCredential(config_dir)
-                if not new_session:
-                    print("Failed to find credential for login.")
-                    raise
-                print("Retrying.")
-                dl.session = session
-                num_relogin += 1
+            if new_session := _ReloginOnFailure(config_dir, _DownloadAndMark):
+                num_relogins += 1
+                dl.session = new_session
+
+            if num_relogins >= _RELOGIN_THRESHOLD:
+                print(
+                    f"Tried relogin {num_relogins} times but still failing. Terminating."
+                )
+                return
 
         items_to_download -= downloaded_items
 
@@ -222,19 +253,20 @@ def _DownloadSubcommand(
     else:
         items_to_download = find_id.CheckAleadyDownloaded(item_ids, management_dir)
 
-    with UsingMainSession(config_dir) as session:
-        try:
-            Download(
-                session,
-                config_dir,
-                management_dir,
-                items_to_download,
-                extract,
-                keep_extracted_archive,
-            )
-        except downloader.HttpUnauthorizeException:
-            print("Unauthorized download. Try relogin and see if it gets fixed.")
-            return
+    session_file = config_dir / "main.session"
+    session = LoadSessionFromFile(session_file)
+    try:
+        Download(
+            session,
+            config_dir,
+            management_dir,
+            items_to_download,
+            extract,
+            keep_extracted_archive,
+        )
+    except downloader.HttpUnauthorizeException:
+        print("Unauthorized download. Try relogin and see if it gets fixed.")
+        return
 
 
 def _DownloadHandler(args):
@@ -349,35 +381,49 @@ def _FindSubcommand(args):
 
 
 def _PurchasedHandler(args):
-    with UsingMainSession(args.config_dir) as session:
+    session_file = args.config_dir / "main.session"
+    session = LoadSessionFromFile(session_file)
+    purchases = []
+
+    def _GetAll():
         purchases = all_purchased.GetAllPurchases(session)
 
-        if args.list_purchase_within:
-            item_ids = []
-            # The dates in the purchased info is in Z time (a.k.a. UTC but Z time is
-            # treated differently from UTC time).
-            target_date = dateparser.parse(f"{args.list_purchase_within} Z")
-            if not target_date:
-                logging.error(f"Failed to understand {args.list_purchase_within}")
-                return
-            logging.debug("target date:", target_date)
-            for purchase in purchases:
-                # The date here is in Z time (JSON)
-                purchase_date = dateparser.parse(purchase["sales_date"])
-                if not purchase_date:
-                    logging.error(
-                        f"Failed to parse date sales_date field in {purchase}"
-                    )
-                    continue
-                logging.debug("Item date:", purchase_date)
-                if purchase_date >= target_date:
-                    item_ids.append(purchase["workno"])
+    _MAX_RETRIES = 1
+    for _ in range(_MAX_RETRIES):
+        if new_session := _ReloginOnFailure(args.config_dir, _GetAll):
+            session = new_session
+        else:
+            break
 
-            print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
+    SaveMainSessionToConfigDir(args.config_dir, session)
 
-        if args.output:
-            with open(args.output, "w") as f:
-                json.dump(purchases, f)
+    if not purchases:
+        return
+
+    if args.list_purchase_within:
+        item_ids = []
+        # The dates in the purchased info is in Z time (a.k.a. UTC but Z time is
+        # treated differently from UTC time).
+        target_date = dateparser.parse(f"{args.list_purchase_within} Z")
+        if not target_date:
+            logging.error(f"Failed to understand {args.list_purchase_within}")
+            return
+        logging.debug("target date:", target_date)
+        for purchase in purchases:
+            # The date here is in Z time (JSON)
+            purchase_date = dateparser.parse(purchase["sales_date"])
+            if not purchase_date:
+                logging.error(f"Failed to parse date sales_date field in {purchase}")
+                continue
+            logging.debug("Item date:", purchase_date)
+            if purchase_date >= target_date:
+                item_ids.append(purchase["workno"])
+
+        print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
+
+    if args.output:
+        with open(args.output, "w") as f:
+            json.dump(purchases, f)
 
 
 def _PointsHandler(args):
