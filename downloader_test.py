@@ -95,3 +95,14 @@ class DownloaderTest(unittest.TestCase):
                 ],
                 dl.DownloadTo("RJ30123", tmpdir),
             )
+
+    def testRaiseOnGetDownloadUrls(self):
+        """Test that an exception is raised when GetDownloadUrls encounters an exception."""
+        # Mock session that raises an exception when get is called
+        session_mock = MagicMock()
+        session_mock.get.return_value.raise_for_status.side_effect = Exception()
+        # Create a Downloader object with the mock session
+        dl = downloader.Downloader(session_mock)
+        # Assert that an exception is raised when GetDownloadUrls is called
+        with self.assertRaises(Exception):
+            dl.GetDownloadUrls("RJ30123")
