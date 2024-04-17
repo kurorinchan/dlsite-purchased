@@ -323,13 +323,30 @@ def _ConfigHandler(args):
     )
 
 
+# There is a race condition in python until 3.13. See https://stackoverflow.com/a/70549000.
+# Until then, thsi shoulw be passed to shutil.rmtree.
+def ignore_extended_attributes(func, filename, exc_info):
+    is_meta_file = os.path.basename(filename).startswith("._")
+    if not (func is os.unlink and is_meta_file):
+        raise
+
+
 def _RemoveFilesInDir(directory: pathlib.Path):
     with os.scandir(directory) as entries:
         for entry in entries:
             if entry.is_dir() and not entry.is_symlink():
-                shutil.rmtree(entry.path)
+                shutil.rmtree(entry.path, onerror=ignore_extended_attributes)
             else:
-                os.remove(entry.path)
+                try:
+                    os.remove(entry.path)
+                except FileNotFoundError as e:
+                    is_meta_file = os.path.basename(entry.name).startswith("._")
+                    if is_meta_file:
+                        # Same as shutil.rmtree, if it starts with "._" but a race condition fails
+                        # to remove it, then ignore.
+                        continue
+                    else:
+                        raise e
 
 
 def _CleanSubcommand(args):

@@ -107,8 +107,10 @@ def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
     if not keep_archive:
         logging.info(f"Cleaning archive files for {archive_dir}")
         for f in archive_files:
-            logging.info(f"Removing {f}.")
-            os.remove(f)
+            # Somehow the file could be removed. Ignore those.
+            if f.exists():
+                logging.info(f"Removing {f}.")
+                os.remove(f)
 
 
 def _ExtractZip(archive_dir: pathlib.Path, target_file: pathlib.Path) -> bool:
