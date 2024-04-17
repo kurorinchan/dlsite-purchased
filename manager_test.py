@@ -11,8 +11,10 @@ import manager
 
 class ManagerTest(unittest.TestCase):
     def testRemoveFilesInDir(self):
+        # Creating a directory different from tmpdir as rundir. It is separated to make sure it
         with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
-            dir_with_items = Path(tmpdir) / "directory_containing_stuff"
+            tmpdir = Path(tmpdir)
+            dir_with_items = tmpdir / "directory_containing_stuff"
             dir_with_items.mkdir()
 
             # Create files and directories, that should get deleted later in
@@ -21,11 +23,13 @@ class ManagerTest(unittest.TestCase):
                 f.write("hello!")
 
             (dir_with_items / "a_subdirectory 32001230178").mkdir()
-            (dir_with_items / "run_remove_from_this_subdir").mkdir()
-
-            os.chdir(dir_with_items / "run_remove_from_this_subdir")
 
             self.assertNotEquals(len(os.listdir(dir_with_items)), 0)
+
+            # Make sure it is run from a directory that is not hierarically above, to make it look
+            # like it is run from a completely separate directory.
+            (tmpdir / "run from this directory").mkdir()
+            os.chdir(tmpdir / "run from this directory")
 
             manager._RemoveFilesInDir(dir_with_items)
 
