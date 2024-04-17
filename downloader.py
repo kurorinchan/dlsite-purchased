@@ -131,6 +131,7 @@ class Downloader:
         # It always redirects. stream=True is necessary if it directly goes to
         # download.
         response = self._Get(url)
+        response.raise_for_status()
         content_type = response.headers["content-type"]
 
         logging.info(f"Response content type is {content_type}")
