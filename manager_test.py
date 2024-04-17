@@ -11,7 +11,7 @@ import manager
 
 class ManagerTest(unittest.TestCase):
     def testRemoveFilesInDir(self):
-        with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             dir_with_items = Path(tmpdir) / "directory_containing_stuff"
             dir_with_items.mkdir()
 
@@ -39,7 +39,7 @@ class ManagerTest(unittest.TestCase):
     @patch("dlsite_extract.CreateArchivesDirs")
     @patch("dlsite_extract.Unarchive")
     def testExtract(self, mock_unarchive, mock_create_archive_dirs, mock_move):
-        with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             download_dir = Path(tmpdir) / "downloads"
             download_dir.mkdir()
             extracted_files_dir = Path(tmpdir) / "some other directory"
@@ -74,7 +74,7 @@ class ManagerTest(unittest.TestCase):
     def testExtractAlreadyExtracted(
         self, mock_unarchive, mock_create_archive_dirs, mock_move, mock_rmtree
     ):
-        with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             download_dir = Path(tmpdir) / "downloads"
             download_dir.mkdir()
             extracted_files_dir = Path(tmpdir) / "some other directory"
@@ -101,9 +101,16 @@ class ManagerTest(unittest.TestCase):
     @patch("requests.Session")
     def testLoadSession(self, mock_session_create, mock_load):
         mock_session = MagicMock()
-        with NamedTemporaryFile() as f:
+        # On non-Windows platforms, `NamedTemporaryFile()` can be used here,
+        # but it won't work on Windows.
+        # This is because the file gets opened on call to NamedTemporaryFile(),
+        # but manager.LoadSessionFromFile also opens it. Behavior for double
+        # open is undefined. So a temporary directory is created instead.
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+            session_file = Path(tmpdir) / "session.pkl"
+            session_file.touch()  # Ensure the file exists before LoadSessionFromFile is called.
             mock_session_create.return_value = mock_session
-            result = manager.LoadSessionFromFile(Path(f.name))
+            result = manager.LoadSessionFromFile(session_file)
             self.assertEquals(result, mock_session)
 
         mock_session_create.assert_called()
@@ -119,7 +126,7 @@ class ManagerTest(unittest.TestCase):
     def testCreateLoginSession(self, mock_login):
         mock_login.return_value = MagicMock()
         mock_login.return_value.cookies = "any value"
-        with TemporaryDirectory() as config_dir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as config_dir:
             os.chdir(config_dir)
             manager._ConfigSubcommand(
                 Path(config_dir),
@@ -139,7 +146,7 @@ class ManagerTest(unittest.TestCase):
         mock_login.assert_called_once_with("fakeusername", "fakepass")
 
     def testCreateLoginSessionOnlyUsername(self):
-        with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             self.assertFalse(
                 manager._ConfigSubcommand(
                     Path(tmpdir),
@@ -151,7 +158,7 @@ class ManagerTest(unittest.TestCase):
             )
 
     def testCreateLoginSessionOnlyPassword(self):
-        with TemporaryDirectory() as tmpdir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
             self.assertFalse(
                 manager._ConfigSubcommand(
                     Path(tmpdir),
@@ -165,8 +172,8 @@ class ManagerTest(unittest.TestCase):
     @patch("downloader.Downloader.DownloadTo")
     def testDownloadUnauthorized(self, download_to_mock: MagicMock):
         download_to_mock.side_effect = downloader.HttpUnauthorizeException(MagicMock())
-        with TemporaryDirectory() as management_dir:
-            with TemporaryDirectory() as config_dir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as management_dir:
+            with TemporaryDirectory(ignore_cleanup_errors=True) as config_dir:
                 mock_session = MagicMock()
                 with self.assertRaises(downloader.HttpUnauthorizeException):
                     manager.Download(
@@ -225,7 +232,7 @@ class ManagerTest(unittest.TestCase):
 
     @patch("login.Login")
     def testRelogin(self, login_mock: MagicMock):
-        with TemporaryDirectory() as config_dir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as config_dir:
             with open(
                 Path(config_dir) / manager._RAW_LOGIN_CREDENTAIL_FILE, "wb"
             ) as test_cred_file:
@@ -238,7 +245,7 @@ class ManagerTest(unittest.TestCase):
 
     @patch("login.Login")
     def testReloginNoCredFile(self, login_mock: MagicMock):
-        with TemporaryDirectory() as config_dir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as config_dir:
             self.assertIsNone(manager._ReloginWithCredential(Path(config_dir)))
 
         login_mock.assert_not_called()
@@ -248,7 +255,7 @@ class ManagerTest(unittest.TestCase):
     def testSessionContextManager(
         self, load_mock: MagicMock, save_session_mock: MagicMock
     ):
-        with TemporaryDirectory() as config_dir:
+        with TemporaryDirectory(ignore_cleanup_errors=True) as config_dir:
             with manager.UsingMainSession(Path(config_dir)) as s:
                 pass
         load_mock.assert_called_once()
