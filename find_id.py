@@ -2,7 +2,7 @@ import argparse
 from dataclasses import dataclass
 import os
 import pathlib
-from typing import List, Set
+from typing import List, Set, Tuple
 
 # TODO: This should be configurable.
 _WATCHED_DIR_NAME = "視聴済み"
@@ -25,8 +25,22 @@ class Item:
     prefix: str
 
 
-# Split the name by any number of '#' with the rest./
+# Split the name by any number of '#' with the rest.
 def _SplitPrefix(name):
+    """Split the given name by any number of '#' or '!'.
+
+    If no such prefix is found, an empty string is returned as the first
+    element of the tuple and the original name as the second element.
+
+    Args:
+        name (str): The name to be split.
+
+    Returns:
+        Tuple[str, str]: A tuple containing the prefix and the rest of the
+        name, respectively.
+
+    """
+
     for i in range(len(name)):
         if name[i] != "#" and name[i] != "!":
             return name[:i], name[i:]
@@ -46,7 +60,18 @@ def _SplitByCategoryPrefix(name):
 
 # Split the the number prefix in |name|. If the prefix is not a number,
 # returns an empty string.
-def _SplitByNumber(name: str):
+def _SplitByNumber(name: str) -> Tuple[str, str]:
+    """Split the the number prefix in |name|. If the prefix is not a number,
+    returns an empty string.
+
+    Args:
+        name (str): The name to be split.
+
+    Returns:
+        Tuple[str, str]: A tuple containing the number prefix and the rest of the
+        name, respectively. If the prefix is not a number, the first element is an
+        empty string.
+    """
     if name.isnumeric():
         return name, ""
     for i in range(len(name)):
@@ -75,7 +100,15 @@ class Items:
         id = category + item_num
         self.items[id] = Item(directory, id, prefix)
 
-    def Find(self, id):
+    def Find(self, id: str) -> Item | None:
+        """Find an item by its ID.
+
+        Args:
+            id (str): The ID of the item.
+
+        Returns:
+            Optional[Item]: The found item, or None if not found.
+        """
         return self.items.get(id)
 
     def GetItemsAsList(self) -> List[Item]:
@@ -83,12 +116,35 @@ class Items:
 
 
 def _AddItemsInDir(directory: pathlib.Path, items: Items):
+    """Add all the subfolders under the directory to the items.
+
+    Args:
+        directory (pathlib.Path): The directory to start searching from.
+        items (Items): The items to add the subfolders to.
+
+    Returns:
+        None
+    """
+
     subfolders = [d for d in directory.iterdir() if d.is_dir()]
     for subfolder in subfolders:
         items.Add(subfolder)
 
 
-def GetItemsInDir(directory: str) -> Items:
+def GetItemsInDir(directory: str | pathlib.Path) -> Items:
+    """Get items in the directory and its subdirectories.
+
+    This function searches for all the subfolders under the directory and
+    adds them to the `items` as `Item` objects. The `Items` object contains
+    all the found items.
+
+    Args:
+        directory (str): The directory to start searching from.
+
+    Returns:
+        Items: The items in the directory and its subdirectories.
+    """
+
     items = Items()
     watched = pathlib.Path(directory) / _WATCHED_DIR_NAME
     if watched.is_dir():
