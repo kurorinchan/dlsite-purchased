@@ -18,6 +18,10 @@ class HttpUnauthorizeException(Exception):
         self.response = response
 
 
+class DownloadError(Exception):
+    pass
+
+
 def FindItemIdFromUrl(item_url):
     parse_result = urllib.parse.urlparse(item_url)
     path = parse_result.path
@@ -51,8 +55,9 @@ def _DownloadWithProgress(
     Note that while it is downloading, it will use a temporary name.
 
     Args:
-        response is the Response object from getting the download object. It
-            is used to get the actual bytes from the a (e.g. GET) request.
+        response is the Response object from getting the download object. It is
+        used to get the actual bytes from the a (e.g. GET) request.
+
         download_path is where the downloaded file will be placed on success.
 
     Returns:
@@ -123,6 +128,8 @@ class Downloader:
         Raises:
             HttpUnauthorizedException is thrown on HTTP unauthorized.
 
+            DownloadError is thrown on download failure.
+
         Returns:
             A list of URLs. The URLs may require a redirect but the redirected
             URL should be an octet stream.
@@ -148,12 +155,12 @@ class Downloader:
             DIVISION_FILE_ID = "download_division_file"
             div_file = split_page.find(id=DIVISION_FILE_ID)
             if div_file is None:
-                raise Exception(f"Failed to find id={DIVISION_FILE_ID}")
-            if type(div_file) is NavigableString:
+                raise DownloadError(f"Failed to find id={DIVISION_FILE_ID}")
+            if isinstance(div_file, NavigableString):
                 logging.debug(
                     f"Found id={DIVISION_FILE_ID} but is a string: {div_file}"
                 )
-                raise Exception(f"Unexpected string: {div_file}")
+                raise DownloadError(f"Unexpected string: {div_file}")
             split_parts = div_file.find_all(class_="work_download")
 
             return [part.find("a").get("href") for part in split_parts]
@@ -171,9 +178,10 @@ class Downloader:
         by the server.
 
         Args:
-            item_id is the ID of the item. Also called work ID. Or this could
-                    the store URL of the item.
-            dir is where the downoloaded items will be placed.
+            item_id: The ID of the item. Also called work ID. Or this could be the
+            store URL of the item.
+
+            dir: where the downoloaded items will be placed.
 
         Raises:
             HttpUnauthorizedException is thrown on HTTP unauthorized.
