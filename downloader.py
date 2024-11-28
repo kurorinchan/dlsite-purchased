@@ -4,7 +4,7 @@ from typing import List, Union
 import urllib.parse
 from tqdm import tqdm
 from sys import path
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 import requests
 
 # Too small chunk size doesn't make much sense. 25 megabytes is set here.
@@ -132,14 +132,28 @@ class Downloader:
         # download.
         response = self._Get(url)
         response.raise_for_status()
+
+        logging.info(f"Response status was: {response.status_code}")
         content_type = response.headers["content-type"]
 
         logging.info(f"Response content type is {content_type}")
-        logging.info(f'Response content length {response.headers["content-length"]}')
+        # Apparently, it is possible to not have "content-length" but it could still proceed just
+        # with response.text. So use get() here.
+        logging.info(
+            f'Response content length: {response.headers.get("content-length")}'
+        )
         if "text/html" in content_type:
             # This is a webpage that contains the split files.
             split_page = BeautifulSoup(response.text, "html.parser")
-            div_file = split_page.find(id="download_division_file")
+            DIVISION_FILE_ID = "download_division_file"
+            div_file = split_page.find(id=DIVISION_FILE_ID)
+            if div_file is None:
+                raise Exception(f"Failed to find id={DIVISION_FILE_ID}")
+            if type(div_file) is NavigableString:
+                logging.debug(
+                    f"Found id={DIVISION_FILE_ID} but is a string: {div_file}"
+                )
+                raise Exception(f"Unexpected string: {div_file}")
             split_parts = div_file.find_all(class_="work_download")
 
             return [part.find("a").get("href") for part in split_parts]
@@ -158,7 +172,7 @@ class Downloader:
 
         Args:
             item_id is the ID of the item. Also called work ID. Or this could
-              the store URL of the item.
+                    the store URL of the item.
             dir is where the downoloaded items will be placed.
 
         Raises:
