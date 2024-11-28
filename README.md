@@ -1,4 +1,4 @@
-![CI](https://github.com/kurorinchan/dlsite-purchased/workflows/CI/badge.svg?branch=master)
+![CI](https://github.com/kurorinchan/dlsite-purchased/actions/workflows/main.yml/badge.svg?branch=master)
 
 DLsiteのAPIを利用して購入情報をJSONとして保存するツール。
 
