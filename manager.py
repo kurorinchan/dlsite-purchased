@@ -21,6 +21,8 @@ import json
 import dlsite_extract
 import find_id
 
+from module import compress
+
 from typing import Callable, List, Optional, Set
 
 from pathlib import Path
@@ -389,6 +391,18 @@ def _CleanSubcommand(args):
         _RemoveFilesInDir(p)
 
 
+def _CompressHandler(args):
+    management_dir = _GetManagementDir(args.config_dir)
+    if not management_dir:
+        print(
+            "Management dir is not specified. Specify the management dir "
+            "with `config` first."
+        )
+        sys.exit(1)
+
+    compress.Compress(args.config, Path(management_dir))
+
+
 def _FindSubcommand(args):
     management_dir = _GetManagementDir(args.config_dir)
     if not management_dir:
@@ -530,6 +544,27 @@ def _ParseArgs(arg_array):
         help="Answer yes to all.",
     )
     parser_clean.set_defaults(handler=_CleanSubcommand)
+
+    parser_compress = subparsers.add_parser("compress")
+    parser_compress.add_argument(
+        "--keep_wav", action="store_true", default=True, help="Keep wav files."
+    )
+    parser_compress.add_argument(
+        "--keep_no_sound_effect_files",
+        action="store_true",
+        default=True,
+        help="Keep no sound effect files.",
+    )
+    parser_compress.add_argument(
+        "--compress_wav_to_flac",
+        action="store_true",
+        default=False,
+        help=(
+            "Compress wav files to flac. Specifying this to True will override "
+            "--keep_wav flag and will remove the original wav file."
+        ),
+    )
+    parser_compress.set_defaults(handler=_CompressHandler)
 
     parser_find = subparsers.add_parser("find")
     parser_find.add_argument("ids", nargs="+")
