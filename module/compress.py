@@ -1,7 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
+from tqdm import tqdm
 import subprocess
 import logging
+import sys
+import re
 
 # Files that do not have sound effects.
 # Any alphabet are case-insensitive.
@@ -91,6 +94,90 @@ def RunFFmpegWav2Flac(wav_file: Path):
         return False  # Return False if there was an error
 
 
+def ConvertWav2Flac(input_file: Path, output_file: Path) -> bool:
+    """Convert audio using FFmpeg and show progress with tqdm.
+    Returns True on success, False on failure."""
+
+    def get_audio_duration(fp: Path):
+        """Get audio duration in seconds using FFprobe."""
+        try:
+            result = subprocess.run(
+                [
+                    "ffprobe",
+                    "-v",
+                    "error",
+                    "-show_entries",
+                    "format=duration",
+                    "-of",
+                    "default=noprint_wrappers=1:nokey=1",
+                    fp,
+                ],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            return float(result.stdout.strip())
+        except Exception as e:
+            logging.error(f"Failed to get duration of {fp}: {e}")
+            return None
+
+    total_duration = get_audio_duration(input_file)
+    if total_duration is None:
+        return False
+
+    cmd = [
+        "ffmpeg",
+        "-i",
+        input_file,
+        "-c:a",
+        "flac",
+        output_file,
+        "-progress",
+        "pipe:1",
+        "-y",
+    ]
+
+    try:
+        process = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
+
+        if process.stdout is None:
+            logging.error("Failed to capture FFmpeg output.")
+            return False
+
+        with tqdm(
+            total=total_duration, unit="sec", desc="Converting", dynamic_ncols=True
+        ) as pbar:
+            for line in process.stdout:
+                sys.stdout.flush()
+
+                # Match time output, handling both "ss.sss" and "hh:mm:ss.sss"
+                match = re.search(r"time=([\d:.]+)", line)
+                if match:
+                    time_str = match.group(1)
+                    if ":" in time_str:
+                        h, m, s = map(float, time_str.split(":"))
+                        current_time = h * 3600 + m * 60 + s
+                    else:
+                        current_time = float(time_str)
+
+                    pbar.update(current_time - pbar.n)
+
+        process.wait()
+
+        if process.returncode == 0:
+            logging.info(f"Audio conversion successful: {output_file}")
+            return True
+        else:
+            logging.error(f"FFmpeg failed with exit code {process.returncode}")
+            return False
+
+    except Exception as e:
+        logging.error(f"Error running FFmpeg: {e}")
+        return False
+
+
 def Compress(config: CompressConfig, directory: Path):
     result = GroupFiles(config, directory)
     keep = sorted(list(result.keep))
@@ -101,14 +188,15 @@ def Compress(config: CompressConfig, directory: Path):
         f.unlink()
 
     wav_files = GetAllWavFiles(keep)
-    for wav_file in wav_files:
-        print(f"Converting {wav_file} to flac.")
-        if not RunFFmpegWav2Flac(wav_file):
+    for wav_path in wav_files:
+        flac_path = wav_path.with_suffix(".flac")
+        print(f"Converting {wav_path} to {flac_path}.")
+        if not ConvertWav2Flac(wav_path, flac_path):
             logging.error(
-                f"Failed to convert wav to flac for {wav_file}. Keeping the file."
+                f"Failed to convert wav to flac for {wav_path}. Keeping the file."
             )
         else:
-            print(f"{wav_file} was converted to flac. Removing.")
-            wav_file.unlink()
+            print(f"{wav_path} was converted to flac. Removing.")
+            wav_path.unlink()
 
     return True

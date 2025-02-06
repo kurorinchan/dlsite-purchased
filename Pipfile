@@ -11,8 +11,8 @@ pytest-cov = "*"
 [packages]
 requests = "*"
 beautifulsoup4 = "*"
-tqdm = "*"
 dateparser = "*"
+tqdm = "*"
 
 [requires]
 python_version = "3.11"
