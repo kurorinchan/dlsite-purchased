@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+from unittest.mock import MagicMock, patch
 
 from regex import P
 from . import compress
@@ -76,3 +77,35 @@ class CompressTest(unittest.TestCase):
             result = compress.GroupFiles(config, Path(tmpdir))
             self.assertEqual(len(result.keep), 1)
             self.assertEqual(len(result.filtered), 9)
+
+    # Verify ConvertWav2Flac works.
+    @patch("subprocess.run")
+    @patch("subprocess.Popen")
+    def testConvertWav2Flac(self, mock_popen, mock_run):
+        """Test convert_audio without using a real WAV file."""
+
+        # Mock FFprobe response (fake duration = 300 seconds)
+        mock_run.return_value.stdout = "300.0\n"
+
+        # Mock Popen (simulating FFmpeg)
+        mock_process = MagicMock()
+        mock_process.stdout = iter(
+            [
+                "frame=0 fps=0.0 q=0.0 time=00:00:10.000\n",
+                "frame=0 fps=0.0 q=0.0 time=00:00:20.000\n",
+                "frame=0 fps=0.0 q=0.0 time=00:05:00.000\n",
+            ]
+        )
+        mock_process.wait.return_value = 0  # Simulate successful execution
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
+
+        # Call the function with mock paths
+        success = compress.ConvertWav2Flac(
+            Path("fake_input.wav"), Path("fake_output.flac")
+        )
+
+        # Assertions
+        self.assertTrue(success)  # Should return True on success
+        mock_run.assert_called_once()  # Ensure ffprobe was called
+        mock_popen.assert_called_once()  # Ensure ffmpeg was called

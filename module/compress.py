@@ -31,7 +31,7 @@ class CompressConfig:
 
     # Compress all wav files to flac.
     # If keep_wav = False then this has no effect.
-    compress_wav_to_flac = True
+    compress_wav_to_flac: bool = True
 
 
 def _GetAllFiles(directory: Path) -> list[Path]:
@@ -69,7 +69,14 @@ def GroupFiles(config: CompressConfig, directory: Path) -> _GroupResult:
 
 
 def GetAllWavFiles(files: list[Path]) -> list[Path]:
-    return [f for f in files if f.suffix.lower() == ".wav"]
+    # On macOS with exfat, it creates these special files that start with this marker to save
+    # metadata. When the real file is deleted these should be deleted as well.
+    _METADATA_FILE_MARKER = "._"
+    return [
+        f
+        for f in files
+        if f.suffix.lower() == ".wav" and not f.name.startswith(_METADATA_FILE_MARKER)
+    ]
 
 
 def RunFFmpegWav2Flac(wav_file: Path):
@@ -101,6 +108,7 @@ def ConvertWav2Flac(input_file: Path, output_file: Path) -> bool:
     def get_audio_duration(fp: Path):
         """Get audio duration in seconds using FFprobe."""
         try:
+            # This outputs the duration of the audio file in decimal seconds.
             result = subprocess.run(
                 [
                     "ffprobe",
@@ -182,21 +190,20 @@ def Compress(config: CompressConfig, directory: Path):
     result = GroupFiles(config, directory)
     keep = sorted(list(result.keep))
 
-    print("Removing files first.")
-    for f in sorted(list(result.filtered)):
-        print(f"Removing {f}.")
-        f.unlink()
+    print("Removing files.")
+    for f in tqdm(sorted(list(result.filtered)), desc="Removing files", unit="file"):
+        f.unlink(missing_ok=True)
 
     wav_files = GetAllWavFiles(keep)
     for wav_path in wav_files:
         flac_path = wav_path.with_suffix(".flac")
         print(f"Converting {wav_path} to {flac_path}.")
-        if not ConvertWav2Flac(wav_path, flac_path):
+        if ConvertWav2Flac(wav_path, flac_path):
+            print(f"{wav_path} was converted to flac. Removing.")
+            wav_path.unlink(missing_ok=True)
+        else:
             logging.error(
                 f"Failed to convert wav to flac for {wav_path}. Keeping the file."
             )
-        else:
-            print(f"{wav_path} was converted to flac. Removing.")
-            wav_path.unlink()
 
     return True
