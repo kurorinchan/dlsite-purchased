@@ -15,7 +15,7 @@ class CompressTest(unittest.TestCase):
         )
 
         files = [Path("any.mp3"), Path("any.wav")]
-        filtered = compress._FilterOutFiles(files, config)
+        filtered = compress._GetFilesToKeep(files, config)
         self.assertEqual(len(filtered), 1)
         self.assertEqual(filtered[0].name, "any.mp3")
 
@@ -34,7 +34,7 @@ class CompressTest(unittest.TestCase):
             Path("SEなし.wav"),
             Path("SEなし/1.wav"),
         ]
-        filtered = compress._FilterOutFiles(files, config)
+        filtered = compress._GetFilesToKeep(files, config)
         self.assertEqual(len(filtered), 1)
         self.assertEqual(filtered[0].name, "any.mp3")
 
@@ -45,7 +45,7 @@ class CompressTest(unittest.TestCase):
         )
 
         files = [Path("any.WAV"), Path("any.Wav")]
-        filtered = compress._FilterOutFiles(files, config)
+        filtered = compress._GetFilesToKeep(files, config)
         self.assertEqual(len(filtered), 0)
 
     def testGroupFiles(self):
@@ -65,6 +65,8 @@ class CompressTest(unittest.TestCase):
             (tmpdir / Path("3_NoSE.wav")).touch()
             (tmpdir / Path("NoSE")).mkdir(parents=True, exist_ok=True)
             (tmpdir / Path("NoSE/03.wav")).touch()
+            (tmpdir / Path("somethingsomethingnose")).mkdir(parents=True, exist_ok=True)
+            (tmpdir / Path("somethingsomethingnose/03.mp3")).touch()
 
             (tmpdir / Path("any.mp3")).touch()
             # This wav file should be removed too.
@@ -76,7 +78,7 @@ class CompressTest(unittest.TestCase):
 
             result = compress.GroupFiles(config, Path(tmpdir))
             self.assertEqual(len(result.keep), 1)
-            self.assertEqual(len(result.filtered), 9)
+            self.assertEqual(len(result.filtered), 10)
 
     # Verify ConvertWav2Flac works.
     @patch("subprocess.run")

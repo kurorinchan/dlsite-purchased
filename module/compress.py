@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 from pathlib import Path
 from tqdm import tqdm
 import subprocess
@@ -46,24 +47,24 @@ def _ContainsNoSoundEffectKeyword(target: str):
 
 
 # Returns files that should be kept by filtering out files specified in `config`.
-def _FilterOutFiles(files: list[Path], config: CompressConfig) -> list[Path]:
+def _GetFilesToKeep(files: list[Path], config: CompressConfig) -> list[Path]:
     if not config.keep_wav:
         files = [f for f in files if not f.name.lower().endswith(".wav")]
 
     if not config.keep_no_sound_effect_files:
-        filtered: list[Path] = []
+        keep: list[Path] = []
         for f in files:
             if _ContainsNoSoundEffectKeyword(str(f)):
                 continue
-            filtered.append(f)
+            keep.append(f)
 
-        files = filtered
+        files = keep
     return files
 
 
 def GroupFiles(config: CompressConfig, directory: Path) -> _GroupResult:
     all_files = _GetAllFiles(directory)
-    keep = set(_FilterOutFiles(all_files, config))
+    keep = set(_GetFilesToKeep(all_files, config))
     filtered = set(all_files) - keep
     return _GroupResult(keep, filtered)
 
@@ -77,6 +78,25 @@ def GetAllWavFiles(files: list[Path]) -> list[Path]:
         for f in files
         if f.suffix.lower() == ".wav" and not f.name.startswith(_METADATA_FILE_MARKER)
     ]
+
+
+# TODO this function probably does not belong here.
+def ExtractWorkId(path: Path) -> str:
+    """
+    Extracts the "RJ" followed by numbers up to the first space from a directory name within a Path.
+
+    Args:
+        path: The pathlib.Path object to search within.
+
+    Returns:
+        The matched string (e.g., "RJ12345") or empty string if not found.
+    """
+
+    for part in path.parts:  # Iterate through the path components
+        match = re.search(r"RJ(\d+)\s", part)  # Regular expression search
+        if match:
+            return "RJ" + match.group(1)  # Return "RJ" + the captured digits
+    return ""
 
 
 def RunFFmpegWav2Flac(wav_file: Path):
@@ -154,8 +174,13 @@ def ConvertWav2Flac(input_file: Path, output_file: Path) -> bool:
             logging.error("Failed to capture FFmpeg output.")
             return False
 
+        work_id = ExtractWorkId(input_file)
         with tqdm(
-            total=total_duration, unit="sec", desc="Converting", dynamic_ncols=True
+            total=total_duration,
+            unit="sec",
+            desc=f"{work_id}:{input_file.name}",
+            dynamic_ncols=True,
+            leave=False,
         ) as pbar:
             for line in process.stdout:
                 sys.stdout.flush()
@@ -190,20 +215,24 @@ def Compress(config: CompressConfig, directory: Path):
     result = GroupFiles(config, directory)
     keep = sorted(list(result.keep))
 
-    print("Removing files.")
+    print(f"Removing {len(result.filtered)} files.")
     for f in tqdm(sorted(list(result.filtered)), desc="Removing files", unit="file"):
-        f.unlink(missing_ok=True)
+        try:
+            os.remove(f)
+        except OSError as e:
+            logging.error(f"Error removing {f}: {e}")  # Print the error for debugging
 
     wav_files = GetAllWavFiles(keep)
-    for wav_path in wav_files:
-        flac_path = wav_path.with_suffix(".flac")
-        print(f"Converting {wav_path} to {flac_path}.")
-        if ConvertWav2Flac(wav_path, flac_path):
-            print(f"{wav_path} was converted to flac. Removing.")
-            wav_path.unlink(missing_ok=True)
-        else:
-            logging.error(
-                f"Failed to convert wav to flac for {wav_path}. Keeping the file."
-            )
+    with tqdm(
+        wav_files, desc="Converting wav to flac", unit="file", dynamic_ncols=True
+    ) as pbar:
+        for wav_path in pbar:
+            flac_path = wav_path.with_suffix(".flac")
+            if ConvertWav2Flac(wav_path, flac_path):
+                wav_path.unlink(missing_ok=True)
+            else:
+                logging.error(
+                    f"Failed to convert wav to flac for {wav_path}. Keeping the file."
+                )
 
     return True

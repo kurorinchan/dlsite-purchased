@@ -559,6 +559,7 @@ def _ParseArgs(arg_array):
         type=bool,
         default=True,
         help="Keep no sound effect files.",
+        action=argparse.BooleanOptionalAction,
     )
     parser_compress.add_argument(
         "--compress_wav_to_flac",
