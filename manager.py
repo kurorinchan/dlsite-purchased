@@ -551,18 +551,21 @@ def _ParseArgs(arg_array):
 
     parser_compress = subparsers.add_parser("compress")
     parser_compress.add_argument(
-        "--remove-flags",
+        "--remove",
         type=compress.RemoveFlag,
         action="append",
         choices=compress.RemoveFlag,
+        help=(
+            "Specify which files to remove. Not specifying will not remove any files. "
+            "Multiple flags can be specified by repeatedly using this flag."
+        ),
     )
     parser_compress.add_argument(
-        "--compress_wav_to_flac",
-        type=bool,
+        "--compress-wav-to-flac",
+        action="store_true",
         default=False,
         help=(
-            "Compress wav files to flac. Specifying this to True will override "
-            "--keep_wav flag and will remove the original wav file."
+            "Compress wav files to flac. Specifying this will remove the original wav files."
         ),
     )
     parser_compress.set_defaults(handler=_CompressHandler)
