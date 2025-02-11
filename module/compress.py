@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 import os
 from pathlib import Path
 from tqdm import tqdm
@@ -18,20 +19,22 @@ class _GroupResult:
     filtered: set[Path]
 
 
+# Enum for specifying which files to remove.
+class RemoveFlag(Enum):
+    # The string values will be used as flags on the command line, so make it human readable.
+    # Also do not use the string values in code, keep using them as enums, e.g. RemoveFlag.WAV.
+    WAV = "wav"
+    NO_SOUND_EFFECT = "no_sound_effect"
+
+    # Trick to use the string values as command line flags.
+    def __str__(self):
+        return self.value
+
+
 @dataclass
 class CompressConfig:
-    # Try to keep these flags to be "non-negating", to keep things easier to read (understand).
-    # For example remove_X = False which is equivalent to keep_X = True, but the former requires
-    # a little more thinking to understand, the latter is easier.
-
-    # Keep no sound effect files.
-    keep_no_sound_effect_files: bool = True
-
-    # Keep wav files.
-    keep_wav: bool = True
-
+    remove_flags: list[RemoveFlag] = field(default_factory=list)
     # Compress all wav files to flac.
-    # If keep_wav = False then this has no effect.
     compress_wav_to_flac: bool = True
 
 
@@ -48,10 +51,10 @@ def _ContainsNoSoundEffectKeyword(target: str):
 
 # Returns files that should be kept by filtering out files specified in `config`.
 def _GetFilesToKeep(files: list[Path], config: CompressConfig) -> list[Path]:
-    if not config.keep_wav:
+    if RemoveFlag.WAV in config.remove_flags:
         files = [f for f in files if not f.name.lower().endswith(".wav")]
 
-    if not config.keep_no_sound_effect_files:
+    if RemoveFlag.NO_SOUND_EFFECT in config.remove_flags:
         keep: list[Path] = []
         for f in files:
             if _ContainsNoSoundEffectKeyword(str(f)):

@@ -401,8 +401,7 @@ def _CompressHandler(args):
         sys.exit(1)
 
     config = compress.CompressConfig(
-        keep_wav=args.keep_wav,
-        keep_no_sound_effect_files=args.keep_no_sound_effect_files,
+        remove_flags=args.remove_flags,
         compress_wav_to_flac=args.compress_wav_to_flac,
     )
     compress.Compress(config, Path(management_dir))
@@ -552,14 +551,10 @@ def _ParseArgs(arg_array):
 
     parser_compress = subparsers.add_parser("compress")
     parser_compress.add_argument(
-        "--keep_wav", type=bool, default=True, help="Keep wav files."
-    )
-    parser_compress.add_argument(
-        "--keep_no_sound_effect_files",
-        type=bool,
-        default=True,
-        help="Keep no sound effect files.",
-        action=argparse.BooleanOptionalAction,
+        "--remove-flags",
+        type=compress.RemoveFlag,
+        action="append",
+        choices=compress.RemoveFlag,
     )
     parser_compress.add_argument(
         "--compress_wav_to_flac",

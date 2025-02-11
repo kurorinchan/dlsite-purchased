@@ -1,3 +1,4 @@
+from os import remove
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
@@ -11,7 +12,7 @@ class CompressTest(unittest.TestCase):
 
     def testFilterFilesRemoveWav(self):
         config = compress.CompressConfig(
-            keep_wav=False,
+            remove_flags=[compress.RemoveFlag.WAV],
         )
 
         files = [Path("any.mp3"), Path("any.wav")]
@@ -21,7 +22,7 @@ class CompressTest(unittest.TestCase):
 
     def testFilterFilesRemoveNoSoundEffect(self):
         config = compress.CompressConfig(
-            keep_no_sound_effect_files=False,
+            remove_flags=[compress.RemoveFlag.NO_SOUND_EFFECT],
         )
         files = [
             Path("10_NOSE.wav"),
@@ -41,7 +42,7 @@ class CompressTest(unittest.TestCase):
     # Verify that filtering happens case-insensitively on file extensions.
     def testFilterFilesVerifyCaseInsensitiveOnFileExtension(self):
         config = compress.CompressConfig(
-            keep_wav=False,
+            remove_flags=[compress.RemoveFlag.WAV],
         )
 
         files = [Path("any.WAV"), Path("any.Wav")]
@@ -50,8 +51,7 @@ class CompressTest(unittest.TestCase):
 
     def testGroupFiles(self):
         config = compress.CompressConfig(
-            keep_no_sound_effect_files=False,
-            keep_wav=False,
+            remove_flags=[compress.RemoveFlag.NO_SOUND_EFFECT, compress.RemoveFlag.WAV],
         )
         with tempfile.TemporaryDirectory() as tmpdir:
             (tmpdir / Path("10_NOSE.wav")).touch()
