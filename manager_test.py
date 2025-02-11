@@ -24,7 +24,7 @@ class ManagerTest(unittest.TestCase):
 
             (dir_with_items / "a_subdirectory 32001230178").mkdir()
 
-            self.assertNotEquals(len(os.listdir(dir_with_items)), 0)
+            self.assertNotEqual(len(os.listdir(dir_with_items)), 0)
 
             # Make sure it is run from a directory that is not hierarically above, to make it look
             # like it is run from a completely separate directory.
@@ -35,7 +35,7 @@ class ManagerTest(unittest.TestCase):
 
             self.assertTrue(dir_with_items.exists())
 
-            self.assertEquals(len(os.listdir(dir_with_items)), 0)
+            self.assertEqual(len(os.listdir(dir_with_items)), 0)
 
     # Verify that extract works. Assuming that the managed directory does not
     # already have the same name directory.
@@ -67,7 +67,7 @@ class ManagerTest(unittest.TestCase):
                 Path(download_dir / "RJ2786"), extracted_files_dir
             )
 
-            self.assertEquals(mock_move.call_count, 2)
+            self.assertEqual(mock_move.call_count, 2)
 
     # If the managed directory already has the same name directory as the
     # extracted archive's, then remove it then move.
@@ -115,7 +115,7 @@ class ManagerTest(unittest.TestCase):
             session_file.touch()  # Ensure the file exists before LoadSessionFromFile is called.
             mock_session_create.return_value = mock_session
             result = manager.LoadSessionFromFile(session_file)
-            self.assertEquals(result, mock_session)
+            self.assertEqual(result, mock_session)
 
         mock_session_create.assert_called()
         mock_session.cookies.update.assert_called()

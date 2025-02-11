@@ -4,7 +4,8 @@ from typing import List, Union
 import urllib.parse
 from tqdm import tqdm
 from sys import path
-from bs4 import BeautifulSoup, NavigableString
+from bs4 import BeautifulSoup
+from bs4.element import NavigableString
 import requests
 
 # Too small chunk size doesn't make much sense. 25 megabytes is set here.

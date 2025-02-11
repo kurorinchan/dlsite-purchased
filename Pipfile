@@ -10,9 +10,9 @@ pytest-cov = "*"
 
 [packages]
 requests = "*"
-beautifulsoup4 = "*"
+beautifulsoup4 = "4.12"
 dateparser = "*"
 tqdm = "*"
 
 [requires]
-python_version = "3.11"
+python_version = "3.13"

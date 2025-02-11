@@ -36,7 +36,7 @@ class FindIdTest(unittest.TestCase):
             items = find_id.GetItemsInDir(tmpdir)
             all_items = items.GetItemsAsList()
             self.assertIsNotNone(all_items)
-            self.assertEquals(len(all_items), 5)
+            self.assertEqual(len(all_items), 5)
             all_item_ids = [item.item_id for item in all_items]
             self.assertIn("RJ23123", all_item_ids)
             self.assertIn("RJ23", all_item_ids)
@@ -61,7 +61,7 @@ class FindIdTest(unittest.TestCase):
 
             paths = find_id.GetAllWatchedItemPaths(tmpdir)
 
-            self.assertEquals(len(paths), 1)
+            self.assertEqual(len(paths), 1)
             self.assertIn((Path(tmpdir) / "視聴済み" / "RJ23"), paths)
 
     def testFindItems(self):

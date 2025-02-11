@@ -27,4 +27,4 @@ class FunctionalTest(unittest.TestCase):
         manager.main(arguments)
         with open(self.__test_config_dir / "management_dir", "r") as f:
             content = f.read().strip()
-            self.assertEquals(os.path.join(self.__tempdir, "manage"), content)
+            self.assertEqual(os.path.join(self.__tempdir, "manage"), content)
