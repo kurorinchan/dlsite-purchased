@@ -401,7 +401,7 @@ def _CompressHandler(args):
         sys.exit(1)
 
     config = compress.CompressConfig(
-        remove_flags=args.remove_flags,
+        remove_flags=args.remove,
         compress_wav_to_flac=args.compress_wav_to_flac,
     )
     compress.Compress(config, Path(management_dir))
@@ -552,6 +552,7 @@ def _ParseArgs(arg_array):
     parser_compress = subparsers.add_parser("compress")
     parser_compress.add_argument(
         "--remove",
+        default=[],
         type=compress.RemoveFlag,
         action="append",
         choices=compress.RemoveFlag,
