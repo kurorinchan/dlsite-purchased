@@ -11,7 +11,7 @@ import concurrent.futures
 import time
 
 __URL_TEMPLATE = "https://play.dlsite.com/api/purchases?page={}"
-__PURCHASED_COUNT_URL = "https://play.dlsite.com/api/product_count"
+__PURCHASED_COUNT_URL = "https://play.dlsite.com/api/v3/content/count?last=0"
 
 
 def GetAllPurchasesFromUsernamePassword(username, password):
