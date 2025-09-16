@@ -420,11 +420,11 @@ def _FindSubcommand(args):
 
 def _PurchasedHandler(args):
     session = LoadMainSessionFromConfigDir(args.config_dir)
-    purchases = []
+    purchases: List[all_purchased.PurchasedItem] = []
 
     def _GetAll():
         nonlocal purchases
-        purchases = all_purchased.GetAllPurchases(session)
+        purchases = all_purchased.GetAllPurchaseDates(session)
 
     _MAX_RETRIES = 1
     for _ in range(_MAX_RETRIES):
@@ -449,13 +449,13 @@ def _PurchasedHandler(args):
         logging.debug("target date:", target_date)
         for purchase in purchases:
             # The date here is in Z time (JSON)
-            purchase_date = dateparser.parse(purchase["sales_date"])
+            purchase_date = purchase.date
             if not purchase_date:
                 logging.error(f"Failed to parse date sales_date field in {purchase}")
                 continue
             logging.debug("Item date:", purchase_date)
             if purchase_date >= target_date:
-                item_ids.append(purchase["workno"])
+                item_ids.append(purchase.workno)
 
         print("Pass these to download command:\n\n" + " ".join(item_ids) + "\n\n")
 

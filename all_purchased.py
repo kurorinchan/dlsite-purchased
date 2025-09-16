@@ -1,6 +1,10 @@
 import argparse
+from dataclasses import dataclass
 import pathlib
 from typing import Dict, List
+from regex import D
+import dateparser
+import datetime
 import requests
 import http.cookiejar
 import json
@@ -12,6 +16,7 @@ import time
 
 __URL_TEMPLATE = "https://play.dlsite.com/api/purchases?page={}"
 __PURCHASED_COUNT_URL = "https://play.dlsite.com/api/v3/content/count?last=0"
+__ALL_PURCHASE_DATE_URL = "https://play.dlsite.com/api/v3/content/sales?last=0"
 
 
 def GetAllPurchasesFromUsernamePassword(username, password):
@@ -134,6 +139,47 @@ def GetAllPurchases(session: requests.Session) -> List:
         all_works += works
 
     return all_works
+
+
+@dataclass
+class PurchasedItem:
+    workno: str
+    date: datetime.datetime
+
+
+def GetAllPurchaseDates(session: requests.Session) -> List[PurchasedItem]:
+    """
+    Get all purchased items as list of PurchasedItem.
+
+    Returns:
+        List[PurchasedItem]: A list of PurchasedItem, each of which contains
+            workno and a datetime object parsed from "sales_date".
+
+    Raises:
+        HTTPError when there is a problem fetching data.
+    """
+
+    response = session.get(__ALL_PURCHASE_DATE_URL)
+    response.raise_for_status()
+    purchased_json = response.json()
+
+    purchased_items: List[PurchasedItem] = []
+    for item in purchased_json:
+        if not item["sales_date"]:
+            logging.error(f"Item {item} has no sales date.")
+            continue
+        if not item["workno"]:
+            logging.error(f"Item {item} has no workno.")
+            continue
+
+        parsed_date = dateparser.parse(item["sales_date"])
+        if not parsed_date:
+            logging.error(f"Failed to parse date sales_date field in {item}")
+            continue
+
+        purchased_items.append(PurchasedItem(workno=item["workno"], date=parsed_date))
+
+    return purchased_items
 
 
 def _WriteAllworksToFile(all_works: Dict, output_file: str | pathlib.Path):
