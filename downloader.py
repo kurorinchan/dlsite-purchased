@@ -135,7 +135,7 @@ class Downloader:
             A list of URLs. The URLs may require a redirect but the redirected
             URL should be an octet stream.
         """
-        url = f"https://play.dlsite.com/api/download?workno={item_id}"
+        url = f"https://play.dlsite.com/api/v3/download?workno={item_id}"
         # It always redirects. stream=True is necessary if it directly goes to
         # download.
         response = self._Get(url)
