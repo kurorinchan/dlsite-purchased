@@ -81,7 +81,8 @@ def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
         keep_archive specifies whether the archives should be kept after extraction.
     """
     archive_files: List[pathlib.Path] = []
-    for file in archive_dir.glob("*"):
+    # Ignore hidden files. It could cause trouble with macos, which creates "._" files.
+    for file in archive_dir.glob("[!.]*"):
         if file.is_file():
             archive_files.append(file)
 
@@ -110,7 +111,13 @@ def Unarchive(archive_dir: pathlib.Path, keep_archive: bool):
             # Somehow the file could be removed. Ignore those.
             if f.exists():
                 logging.info(f"Removing {f}.")
-                os.remove(f)
+                # Putting in try block because on macos it might try to remove "._" files. They
+                # should be excluded above in glob, but just in case.
+                # It's not too fatal to fail to remove. So trying here.
+                try:
+                    os.remove(f)
+                except OSError as e:
+                    logging.error(f"Failed to remove {f}: {e}")
 
 
 def _ExtractZip(archive_dir: pathlib.Path, target_file: pathlib.Path) -> bool:
