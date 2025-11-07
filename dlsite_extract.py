@@ -182,6 +182,14 @@ def _PopOneWork(files: List[str]) -> Tuple[List[str], List[str]]:
 
     if f.endswith(".zip"):
         # Zip file is always single file.
+        logging.debug(f"Single zip file {f}.")
+        archive_paths.append(f)
+        return archive_paths, files
+
+    # Special case where the file is just WORKNAME.exe. Sometimes it is a single exe file.
+    work_name = match[1]
+    if f == f"{work_name}.exe":
+        logging.debug(f"Single exe file {f}.")
         archive_paths.append(f)
         return archive_paths, files
 
@@ -189,6 +197,7 @@ def _PopOneWork(files: List[str]) -> Tuple[List[str], List[str]]:
         return [], files
 
     # This is a split archive so put it in archive paths immediately.
+    logging.debug(f"Found split archive {f}.")
     archive_paths.append(f)
 
     # Split archive.
@@ -208,6 +217,15 @@ def _PopOneWork(files: List[str]) -> Tuple[List[str], List[str]]:
 class Archive:
     @classmethod
     def Create(cls, dir: pathlib.Path):
+        """Create directories for downloaded files.
+
+        Args:
+            dir (pathlib.Path): directory containing downloaded files.
+
+        Returns:
+            list[Archive]: Archive objects.
+        """
+
         onlyfiles = [f for f in os.listdir(dir) if os.path.isfile(os.path.join(dir, f))]
 
         # Sometimes there are hidden files. Filter them out.
