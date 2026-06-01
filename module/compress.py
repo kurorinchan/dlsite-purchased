@@ -102,26 +102,57 @@ def ExtractWorkId(path: Path) -> str:
     return ""
 
 
-def RunFFmpegWav2Flac(wav_file: Path):
+def RunFFmpegWav2Flac(wav_file: Path) -> bool:
+    output_file = wav_file.with_suffix(".flac")
     command = [
         "ffmpeg",
         "-i",
         str(wav_file),
         "-c:a",
         "flac",
-        str(wav_file.with_suffix(".flac")),
+        str(output_file),
     ]
 
+    _HARD_TIMEOUT = 60
+
     try:
-        # Run the command
-        subprocess.run(command)
-        return True  # Return True if the command was successful
+        # Run command with 60s timeout and check for non-zero exit
+        subprocess.run(command, check=True, timeout=_HARD_TIMEOUT)
+        return True
+
+    except subprocess.TimeoutExpired:
+        logging.error(f"FFmpeg timed out after 60 seconds: {' '.join(command)}")
+        # Attempt to clean up partial/flac file
+        try:
+            if output_file.exists():
+                output_file.unlink()
+                logging.info(f"Cleaned up partial output file: {output_file}")
+        except OSError as e:
+            logging.warning(f"Failed to remove partial output file {output_file}: {e}")
+        return False
+
     except subprocess.CalledProcessError as e:
-        # Log the error
-        logging.error(f"Command failed: {' '.join(command)}")
-        logging.error(f"Exit code: {e.returncode}")
-        logging.error(f"Error output: {e.stderr.strip()}")
-        return False  # Return False if there was an error
+        logging.error(
+            f"FFmpeg failed with exit code {e.returncode}: {' '.join(command)}"
+        )
+        # Optional: also clean up on failure (recommended to avoid corrupted outputs)
+        try:
+            if output_file.exists():
+                output_file.unlink()
+                logging.info(f"Cleaned up failed output file: {output_file}")
+        except OSError as e:
+            logging.warning(f"Failed to remove failed output file {output_file}: {e}")
+        return False
+
+    except Exception as e:
+        logging.error(f"Unexpected error running FFmpeg: {e}")
+        # Still try cleanup
+        try:
+            if output_file.exists():
+                output_file.unlink()
+        except OSError:
+            pass
+        return False
 
 
 def ConvertWav2Flac(input_file: Path, output_file: Path) -> bool:
